@@ -24,3 +24,14 @@ class AppUser {
   String cedula;            // editable
   String bio;               // editable
 
+  AppUser({
+    required this.role,
+    required this.nombre,
+    required this.apellido,
+    required this.email,
+    required this.password,
+    required this.campoExtra,
+    this.cedula = '',
+    this.bio = '',
+  });
+}
