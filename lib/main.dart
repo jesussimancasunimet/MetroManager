@@ -12,3 +12,15 @@ void main() {
   runApp(const MetroManagerApp());
 }
 
+/// ======================== MODELOS Y REPO (DEMO) ========================
+class AppUser {
+  final String role;        // 'estudiante' o 'profesor'
+  String nombre;            // editable en Perfil
+  String apellido;          // editable en Perfil
+  final String email;
+  final String password;
+  final String campoExtra;  // carrera (estudiante) o profesión (profesor)
+
+  String cedula;            // editable
+  String bio;               // editable
+
