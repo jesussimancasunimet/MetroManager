@@ -283,9 +283,9 @@ class _LoginPageState extends State<LoginPage> {
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Solo se permiten correos institucionales UNIMET\n'
-                                    'Estudiantes: @correo.unimet.edu.ve\n'
-                                    'Profesores: @unimet.edu.ve',
+                                'Solo se permiten correos institucionales UNIMET\n' // Comment
+                                    'Estudiantes: @correo.unimet.edu.ve\n' // Identifica estudiantes
+                                    'Profesores: @unimet.edu.ve', // Identifica profe
                                 style: TextStyle(fontSize: 13.5, color: Colors.white),
                               ),
                             ),
