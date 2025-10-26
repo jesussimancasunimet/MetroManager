@@ -393,3 +393,79 @@ class _RegisterLink extends StatelessWidget {
 }
 
 
+/// ======================== ROLE SELECT ========================
+class RoleSelectPage extends StatelessWidget {
+  const RoleSelectPage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 36),
+            child: Column(
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 540),
+                    child: Card(
+                      color: Colors.white,
+                      surfaceTintColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                        child: _LogoTitleRow(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text('Crear cuenta', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (_, c) {
+                    final two = c.maxWidth >= 720;
+                    final cards = [
+                      _RoleCard(
+                        icon: Icons.school_outlined,
+                        title: 'Estudiante',
+                        subtitle: 'Gestiona clases, tareas y más.',
+                        onTap: () => Navigator.pushNamed(context, '/register', arguments: 'estudiante'),
+                        accentColor: kAccentYellow,
+                      ),
+                      _RoleCard(
+                        icon: Icons.person_outline,
+                        title: 'Profesor',
+                        subtitle: 'Organiza cursos y tus grupos.',
+                        onTap: () => Navigator.pushNamed(context, '/register', arguments: 'profesor'),
+                        accentColor: Colors.white70,
+                      ),
+                    ];
+                    if (two) {
+                      return Row(
+                        children: [
+                          Expanded(child: cards[0]),
+                          const SizedBox(width: 16),
+                          Expanded(child: cards[1]),
+                        ],
+                      );
+                    }
+                    return Column(children: [cards[0], const SizedBox(height: 12), cards[1]]);
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.chevron_left, color: Colors.white),
+                  label: const Text('Volver', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
