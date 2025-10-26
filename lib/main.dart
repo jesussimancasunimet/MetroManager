@@ -675,4 +675,265 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
+/// ======================== HOME (redirige a Perfil) ========================
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _navigated = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_navigated) return;
+
+    final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+    if (user == null) return;
+
+    _navigated = true;
+    // Redirige después del primer frame (evita warnings con BuildContext)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        user.role == 'estudiante' ? '/student/profile' : '/professor/profile',
+        arguments: user,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: SizedBox.shrink());
+  }
+}
+
+/// ======================== PERFIL ESTUDIANTE ========================
+class StudentProfilePage extends StatefulWidget {
+  const StudentProfilePage({super.key});
+  @override
+  State<StudentProfilePage> createState() => _StudentProfilePageState();
+}
+
+class _StudentProfilePageState extends State<StudentProfilePage> {
+  final _bioCtrl = TextEditingController();
+  final _cedulaCtrl = TextEditingController();
+  final _nombreCtrl = TextEditingController();
+  final _apellidoCtrl = TextEditingController();
+  late AppUser user;
+
+  int _tabIndex = 3; // 0:Inicio, 1:Proyectos, 2:Solicitudes, 3:Perfil
+
+  @override
+  void dispose() {
+    _bioCtrl.dispose();
+    _cedulaCtrl.dispose();
+    _nombreCtrl.dispose();
+    _apellidoCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    user = (ModalRoute.of(context)?.settings.arguments as AppUser?)!;
+    _bioCtrl.text = user.bio;
+    _cedulaCtrl.text = user.cedula;
+    _nombreCtrl.text = user.nombre;
+    _apellidoCtrl.text = user.apellido;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.withValues(alpha: .08),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleSpacing: 0,
+        title: Row(
+          children: const [
+            SizedBox(width: 16),
+            _MetroMark(),
+            SizedBox(width: 12),
+            Text('METRO MANAGER ESTUDIANTE',
+                style: TextStyle(color: Color(0xFF0E2238), fontWeight: FontWeight.w800)),
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0E2238),
+                side: BorderSide(color: Colors.grey.withValues(alpha: .4)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+              ),
+              onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false),
+              child: const Text('Salir'),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // NAV TABS
+          Container(
+            color: Colors.white,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 16),
+                    _TopTab(label: 'Página Principal', selected: _tabIndex == 0, onTap: () => setState(() => _tabIndex = 0)),
+                    _TopTab(label: 'Mis Proyectos', selected: _tabIndex == 1, onTap: () => setState(() => _tabIndex = 1)),
+                    _TopTab(label: 'Solicitudes Enviadas', selected: _tabIndex == 2, onTap: () => setState(() => _tabIndex = 2)),
+                    _TopTab(label: 'Perfil', selected: _tabIndex == 3, onTap: () => setState(() => _tabIndex = 3)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: _tabIndex == 3 ? _profileContent() : _placeholderSection(),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholderSection() {
+    final titles = ['Página Principal', 'Mis Proyectos', 'Solicitudes Enviadas'];
+    return Card(
+      color: Colors.white,
+      child: Center(
+        child: Text('Sección: ${titles[_tabIndex]} (demo)',
+            style: const TextStyle(fontSize: 18, color: Color(0xFF0E2238))),
+      ),
+    );
+  }
+
+  Widget _profileContent() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // IZQUIERDA
+        Expanded(
+          flex: 3,
+          child: Card(
+            color: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _FieldBlock(
+                    title: 'Nombre y Apellido',
+                    controllerLeft: _nombreCtrl,
+                    controllerRight: _apellidoCtrl,
+                    hintLeft: 'Nombre',
+                    hintRight: 'Apellido',
+                  ),
+                  const SizedBox(height: 18),
+                  _FieldBlock.single(
+                    title: 'Cédula',
+                    controller: _cedulaCtrl,
+                    hint: 'Ej: 31894531',
+                  ),
+                  const SizedBox(height: 18),
+                  _FieldBlock.single(
+                    title: 'Carrera',
+                    controller: TextEditingController(text: user.campoExtra),
+                    hint: 'Tu carrera',
+                    readOnly: true,
+                  ),
+                  const SizedBox(height: 18),
+                  _FieldBlock.single(
+                    title: 'Correo Electrónico',
+                    controller: TextEditingController(text: user.email),
+                    hint: 'correo@correo.unimet.edu.ve',
+                    readOnly: true,
+                  ),
+                  const SizedBox(height: 24),
+                  Align(
+                    alignment: Alignment.center,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kDeepBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _saveChanges,
+                      child: const Text('Guardar Cambios'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 18),
+        // DERECHA (BIO)
+        Expanded(
+          flex: 2,
+          child: Card(
+            color: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Biografía Personal',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0E2238))),
+                  const SizedBox(height: 4),
+                  const Text('(Opcional)', style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _bioCtrl,
+                    maxLines: 10,
+                    decoration: const InputDecoration(
+                      hintText: 'Escribe algo sobre ti...',
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: kAccentYellow, width: 1.2),
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: kAccentYellow, width: 1.6),
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _saveChanges() {
+    setState(() {
+      user.nombre  = _nombreCtrl.text.trim();
+      user.apellido = _apellidoCtrl.text.trim();
+      user.cedula  = _cedulaCtrl.text.trim();
+      user.bio     = _bioCtrl.text.trim();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil actualizado')));
+  }
+}
 
