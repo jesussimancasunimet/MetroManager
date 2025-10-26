@@ -162,3 +162,148 @@ class MetroManagerApp extends StatelessWidget {
     );
   }
 }
+
+/// ======================== LOGIN ========================
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _obscure = true;
+  bool _loading = false;
+  bool _remember = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _onLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    final user = UserRepository.instance.login(_emailCtrl.text, _passCtrl.text);
+
+    setState(() => _loading = false);
+
+    if (user == null) {
+      if (!UserRepository.instance.exists(_emailCtrl.text)) {
+        _showSnack('No estás registrado. Usa “Regístrate” para crear tu cuenta.');
+      } else {
+        _showSnack('Contraseña incorrecta. Inténtalo nuevamente.');
+      }
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/home', arguments: user);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isWide = size.width >= 920.0;
+
+    final logoCard = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540),
+        child: Card(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                _MetroMark(),
+                SizedBox(width: 18),
+                _LogoTitle(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final form = Center(
+        child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Form(
+                    key: _formKey,
+                    child: AutofillGroup(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                            const SizedBox(height: 22),
+                        const Text(
+                          'Bienvenido',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Inicia sesión para poder proceder',
+                          style: TextStyle(fontSize: 16, color: Colors.white.withValues(alpha: .85)),
+                        ),
+                        const SizedBox(height: 18),
+                        TextFormField(
+                          controller: _emailCtrl,
+                          autofillHints: const [AutofillHints.email],
+                          keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(color: Color(0xFF0E2238)),
+                          decoration: const InputDecoration(
+                            hintText: 'usuario@correo.unimet.edu.ve o usuario@unimet.edu.ve',
+                            prefixIcon: Icon(Icons.alternate_email),
+                            suffixIcon: Icon(Icons.mail_outline),
+                          ),
+                          validator: _unimetEmailValidator,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(Icons.info_outline, color: Colors.white70, size: 18),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Solo se permiten correos institucionales UNIMET\n'
+                                    'Estudiantes: @correo.unimet.edu.ve\n'
+                                    'Profesores: @unimet.edu.ve',
+                                style: TextStyle(fontSize: 13.5, color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                            controller: _passCtrl,
+                            autofillHints: const [AutofillHints.password],
+                            obscureText: _obscure,
+                            style: const TextStyle(color: Color(0xFF0E2238)),
+                            decoration: InputDecoration(
+                              labelText: 'Contraseña',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                tooltip: _obscure ? 'Mostrar' : 'Ocultar',
+                                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                                onPressed: () => setState(() => _obscure = !_obscure),
+                              ),
+
+
