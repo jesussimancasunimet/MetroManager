@@ -1,3 +1,7 @@
+// PRIMER DIA DE TRABAJO
+// FOTOS JUNTOS
+// https://drive.google.com/drive/folders/1UMj6OgQgoc3GavE7xWEY5IawKM2NU0KG
+
 import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1369,3 +1373,7 @@ String? _passwordValidator(String? v) {
 
 String? Function(String?) _requiredValidator(String message) =>
         (v) => (v == null || v.trim().isEmpty) ? message : null;
+
+ // FINAL LO LOGRAMOS SI CORRE
+// FOTICO JUNTOS
+// https://drive.google.com/file/d/1eNbDjN2aPTE_yJkO8kFhOcsTiB2yscsj/view?usp=drivesdk
