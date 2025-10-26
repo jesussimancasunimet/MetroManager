@@ -49,3 +49,11 @@ class UserRepository {
     _users[key] = user;
     return true;
   }
+ AppUser? login(String email, String password) {
+   final key = email.toLowerCase().trim();
+   final user = _users[key];
+   if (user == null) return null;
+   if (user.password != password) return null;
+   return user;
+ }
+}
