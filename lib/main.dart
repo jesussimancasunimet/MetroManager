@@ -57,3 +57,108 @@ class UserRepository {
    return user;
  }
 }
+
+/// ======================== APP ROOT ========================
+class MetroManagerApp extends StatelessWidget {
+  const MetroManagerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: kDeepBlue,
+      brightness: Brightness.light,
+      primary: kDeepBlue,
+    );
+
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: kDeepBlue,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        labelStyle: TextStyle(color: const Color(0xFF0E2238).withValues(alpha: .8)),
+        hintStyle: const TextStyle(color: Color(0xFF667085)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE6E8EC)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE6E8EC)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kDeepBlue, width: 1.6),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.red.withValues(alpha: .9)),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: .12),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.white.withValues(alpha: .12),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Colors.white70),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        side: const BorderSide(color: Colors.white70),
+        checkColor: WidgetStateProperty.all(kDeepBlue),
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return Colors.white;
+          return Colors.transparent;
+        }),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.black.withValues(alpha: .9),
+        contentTextStyle: const TextStyle(color: Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(builders: {
+        TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+      }),
+    );
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'MetroManager',
+      theme: theme,
+      builder: (context, child) {
+        return ScrollConfiguration(
+          behavior: const _WebScrollBehavior(),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+      initialRoute: '/',
+      routes: {
+        '/': (_) => const LoginPage(),
+        '/role': (_) => const RoleSelectPage(),
+        '/register': (_) => const RegisterPage(),
+        '/home': (_) => const HomePage(),
+        '/student/profile': (_) => const StudentProfilePage(),
+        '/professor/profile': (_) => const ProfessorProfilePage(),
+      },
+    );
+  }
+}
