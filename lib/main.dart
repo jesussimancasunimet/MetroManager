@@ -40,3 +40,12 @@ class UserRepository {
  UserRepository._();
  static final UserRepository instance = UserRepository._();
  final Map<String, AppUser> _users = {};
+
+ bool exists(String email) => _users.containsKey(email.toLowerCase().trim());
+
+  bool register(AppUser user) {
+    final key = user.email.toLowerCase().trim();
+    if (_users.containsKey(key)) return false;
+    _users[key] = user;
+    return true;
+  }
