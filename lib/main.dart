@@ -469,3 +469,210 @@ class RoleSelectPage extends StatelessWidget {
   }
 }
 
+
+/// ======================== REGISTER ========================
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _nombreCtrl = TextEditingController();
+  final _apellidoCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _extraCtrl = TextEditingController(); // carrera o profesión
+  bool _obscure = true;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _apellidoCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _extraCtrl.dispose();
+    super.dispose();
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _onRegister(String role) async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    await Future.delayed(const Duration(milliseconds: 360));
+
+    final user = AppUser(
+      role: role,
+      nombre: _nombreCtrl.text.trim(),
+      apellido: _apellidoCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      password: _passCtrl.text,
+      campoExtra: _extraCtrl.text.trim(),
+    );
+
+    final ok = UserRepository.instance.register(user);
+    setState(() => _saving = false);
+
+    if (!ok) {
+      _showSnack('Ese correo ya está registrado. Intenta iniciar sesión.');
+      return;
+    }
+
+    if (!mounted) return;
+    _showSnack('Registro exitoso. ¡Bienvenid@!');
+    Navigator.pushNamedAndRemoveUntil(context, '/home', (r) => false, arguments: user);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final role = ModalRoute.of(context)?.settings.arguments as String? ?? 'estudiante';
+    final esEstudiante = role == 'estudiante';
+    final labelExtra = esEstudiante ? 'Carrera que estudias' : 'Profesión';
+
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 36),
+            child: Column(
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 540),
+                    child: Card(
+                      color: Colors.white,
+                      surfaceTintColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                        child: _LogoTitleRow(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text('Registro - ${esEstudiante ? "Estudiante" : "Profesor"}',
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 700),
+                  child: Card(
+                    color: Colors.white,
+                    surfaceTintColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Form(
+                        key: _formKey,
+                        child: AutofillGroup(
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _nombreCtrl,
+                                      textCapitalization: TextCapitalization.words,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Nombre',
+                                        prefixIcon: Icon(Icons.badge_outlined),
+                                      ),
+                                      validator: _requiredValidator('Ingresa tu nombre'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _apellidoCtrl,
+                                      textCapitalization: TextCapitalization.words,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Apellido',
+                                        prefixIcon: Icon(Icons.badge),
+                                      ),
+                                      validator: _requiredValidator('Ingresa tu apellido'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _emailCtrl,
+                                keyboardType: TextInputType.emailAddress,
+                                autofillHints: const [AutofillHints.email],
+                                decoration: const InputDecoration(
+                                  labelText: 'Correo UNIMET',
+                                  hintText: 'usuario@correo.unimet.edu.ve o usuario@unimet.edu.ve',
+                                  prefixIcon: Icon(Icons.email_outlined),
+                                ),
+                                validator: _unimetEmailValidator,
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _passCtrl,
+                                autofillHints: const [AutofillHints.newPassword],
+                                obscureText: _obscure,
+                                decoration: InputDecoration(
+                                  labelText: 'Contraseña',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    tooltip: _obscure ? 'Mostrar' : 'Ocultar',
+                                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                                    onPressed: () => setState(() => _obscure = !_obscure),
+                                  ),
+                                ),
+                                validator: _passwordValidator,
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _extraCtrl,
+                                textCapitalization: TextCapitalization.sentences,
+                                decoration: InputDecoration(
+                                  labelText: labelExtra,
+                                  prefixIcon: Icon(esEstudiante ? Icons.school_outlined : Icons.work_outline),
+                                ),
+                                validator: _requiredValidator(esEstudiante ? 'Ingresa tu carrera' : 'Ingresa tu profesión'),
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  icon: _saving
+                                      ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                      : const Icon(Icons.person_add_alt),
+                                  label: const Text('Registrarse'),
+                                  onPressed: _saving ? null : () => _onRegister(role),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextButton.icon(
+                                onPressed: _saving ? null : () => Navigator.pop(context),
+                                icon: const Icon(Icons.chevron_left),
+                                label: const Text('Volver'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
