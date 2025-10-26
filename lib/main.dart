@@ -305,5 +305,91 @@ class _LoginPageState extends State<LoginPage> {
                                 icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                                 onPressed: () => setState(() => _obscure = !_obscure),
                               ),
+                            ),
+                          validator: _passwordValidator,
+                          onFieldSubmitted: (_) => _onLogin(),
+                        ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Checkbox(
+                                      value: _remember,
+                                      onChanged: (v) => setState(() => _remember = v ?? false),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text('Recordar Contraseña', style: TextStyle(color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: _loading ? null : _onLogin,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (_loading)
+                                        const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        ),
+                                      if (_loading) const SizedBox(width: 10),
+                                      const Text('Iniciar Sesión'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 6,
+                                children: const [
+                                  Text('¿No tienes cuenta?', style: TextStyle(color: Colors.white)),
+                                  _RegisterLink(),
+                                ],
+                              ),
+                            ],
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    );
+    return Scaiold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: isWide ? 60 : 18, vertical: 40),
+            child: Column(
+              children: [
+                logoCard,
+                const SizedBox(height: 26),
+                form,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+class _RegisterLink extends StatelessWidget {
+  const _RegisterLink();
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/role'),
+      child: const Text('Regístrate', style: TextStyle(color: kAccentYellow, fontWeight:
+      FontWeight.w800)),
+    );
+  }
+}
 
 
