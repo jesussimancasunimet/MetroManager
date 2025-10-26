@@ -35,3 +35,8 @@ class AppUser {
     this.bio = '',
   });
 }
+
+class UserRepository {
+ UserRepository._();
+ static final UserRepository instance = UserRepository._();
+ final Map<String, AppUser> _users = {};
