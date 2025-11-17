@@ -3706,3 +3706,114 @@ class MetroQuickActionButton extends StatelessWidget {
 }
 
 
+
+// HERO NUEVO BOTON REUTILIZABLE
+
+
+class MetroHeroHeader extends StatelessWidget {
+  final AppUser user;
+  final String subtitle;
+  final List<Widget> actions;
+  final List<Widget> chips;
+  final List<Widget> stats;
+
+  const MetroHeroHeader({
+    super.key,
+    required this.user,
+    required this.subtitle,
+    this.actions = const [],
+    this.chips = const [],
+    this.stats = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre = user.fullName.isEmpty ? 'Usuario' : user.fullName;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [kDeepBlue, Color(0xFF174773)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          // LADO IZQUIERDO: info principal
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: kAccentYellow.withOpacity(.22),
+                      child: Text(
+                        user.initials,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hola, $nombre 👋',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.white.withOpacity(.85),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (chips.isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: chips,
+                  ),
+                if (stats.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: stats,
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // LADO DERECHO: acciones / iconos
+          if (actions.isNotEmpty) ...[
+            const SizedBox(width: 16),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: actions,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+
