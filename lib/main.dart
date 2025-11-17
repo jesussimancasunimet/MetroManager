@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// ======================== COLORES GLOBALES ========================
-
+// Definimos las constantes de color utilizadas en toda la aplicación
+// para mantener una identidad visual consistente.
 const kDeepBlue = Color(0xFF0F3A63);
 const kAccentYellow = Color(0xFFF0B429);
 
@@ -14,7 +15,8 @@ void main() {
 }
 
 /// ======================== MODELOS Y REPOSITORIOS ========================
-
+// Andrea y Adolfo configuraron la lógica de negocio y las estructuras de datos que representan la información de
+// la aplicación, así como los Repositorios que gestionan esos datos.
 class AppUser {
   final String role; // 'estudiante' o 'profesor'
   String nombre;
@@ -253,7 +255,7 @@ class ProjectRepository {
 }
 
 /// ======================== APP ROOT ========================
-
+// definición de la apariencia y la navegación de la aplicación.
 class MetroManagerApp extends StatelessWidget {
   const MetroManagerApp({super.key});
 
@@ -365,7 +367,8 @@ class MetroManagerApp extends StatelessWidget {
 }
 
 /// ======================== LOGIN ========================
-
+// se realizó la representación del formulario de inicio de seción
+// y la logica de autenticación
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -640,7 +643,8 @@ class _RegisterLink extends StatelessWidget {
 }
 
 /// ======================== ROLE SELECT ========================
-
+// en esta sección el usuartio podrá elegir el rol con el que se
+// registrará: estudiante o profesor
 class RoleSelectPage extends StatelessWidget {
   const RoleSelectPage({super.key});
 
@@ -746,7 +750,7 @@ class RoleSelectPage extends StatelessWidget {
 }
 
 /// ======================== REGISTER ========================
-
+// formulario y la lógica para crear un nuevo usuario
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -3605,3 +3609,4 @@ String? _passwordValidator(String? v) {
 String? Function(String?) _requiredValidator(String message) {
   return (v) => (v == null || v.trim().isEmpty) ? message : null;
 }
+
