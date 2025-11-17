@@ -3859,4 +3859,29 @@ class MetroSectionCard extends StatelessWidget {
   }
 }
 
+// FONDO
+
+class MetroGradientBackground extends StatelessWidget {
+  final Widget child;
+
+  const MetroGradientBackground({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFF8FAFF),
+            Color(0xFFE6EDF7),
+          ],
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
 
