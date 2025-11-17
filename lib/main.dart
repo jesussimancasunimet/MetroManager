@@ -3817,3 +3817,46 @@ class MetroHeroHeader extends StatelessWidget {
 }
 
 
+// TARJETA DE SECCION PRE ARMADA
+
+class MetroSectionCard extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget child;
+  final Widget? trailing;
+
+  const MetroSectionCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MetroSectionHeader(
+              title: title,
+              subtitle: subtitle,
+              trailing: trailing,
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
