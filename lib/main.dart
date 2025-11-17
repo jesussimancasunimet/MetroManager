@@ -3885,3 +3885,87 @@ class MetroGradientBackground extends StatelessWidget {
 }
 
 
+// =======================================================================
+//   HELPERS VISUALES PARA METRO HERO / SECTION CARD
+//   (no modifican nada existente, solo agregan funcionalidad)
+// =======================================================================
+
+/// Extensión de presentación para AppUser (solo cosas visuales)
+extension AppUserPresentationX on AppUser {
+  /// Nombre completo listo para mostrar
+  String get fullName {
+    final n = nombre.trim();
+    final a = apellido.trim();
+    if (n.isEmpty && a.isEmpty) return '';
+    if (n.isEmpty) return a;
+    if (a.isEmpty) return n;
+    return '$n $a';
+  }
+
+  /// Iniciales para avatar, por ejemplo "CC"
+  String get initials {
+    String firstLetter(String s) {
+      final t = s.trim();
+      if (t.isEmpty) return '';
+      return t[0].toUpperCase();
+    }
+
+    final n = firstLetter(nombre);
+    final a = firstLetter(apellido);
+    final result = '$n$a';
+    if (result.trim().isEmpty) return '?';
+    return result;
+  }
+}
+
+/// Header de sección reutilizable, usado por MetroSectionCard
+class MetroSectionHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+
+  const MetroSectionHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0E2238),
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle!,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF667085),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    if (trailing == null) return column;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(child: column),
+        const SizedBox(width: 12),
+        trailing!,
+      ],
+    );
+  }
+}
