@@ -1,12 +1,11 @@
-import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// ======================== COLORES GLOBALES ========================
-// Definimos las constantes de color utilizadas en toda la aplicación
-// para mantener una identidad visual consistente.
+
 const kDeepBlue = Color(0xFF0F3A63);
 const kAccentYellow = Color(0xFFF0B429);
+const kLogoOrange = Color(0xFFFF8A3D);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,8 +14,8 @@ void main() {
 }
 
 /// ======================== MODELOS Y REPOSITORIOS ========================
-// Andrea y Adolfo configuraron la lógica de negocio y las estructuras de datos que representan la información de
-// la aplicación, así como los Repositorios que gestionan esos datos.
+/// ------------------------ Usuarios ------------------------
+
 class AppUser {
   final String role; // 'estudiante' o 'profesor'
   String nombre;
@@ -66,9 +65,12 @@ class UserRepository {
 
   List<AppUser> get students =>
       _users.values.where((u) => u.role == 'estudiante').toList();
+
+  List<AppUser> get professors =>
+      _users.values.where((u) => u.role == 'profesor').toList();
 }
 
-/// ---- Proyectos y tareas ----
+/// ------------------------ Proyectos y tareas ------------------------
 
 class ProjectTask {
   final String id;
@@ -81,8 +83,11 @@ class ProjectTask {
     this.completed = false,
   });
 
-  ProjectTask copy() =>
-      ProjectTask(id: id, title: title, completed: completed);
+  ProjectTask copy() => ProjectTask(
+    id: id,
+    title: title,
+    completed: completed,
+  );
 }
 
 class Project {
@@ -122,45 +127,8 @@ class ProjectRepository {
 
   static final ProjectRepository instance = ProjectRepository._();
 
-  /// Proyectos demo + los que se creen
-  final List<Project> allProjects = [
-    Project(
-      id: 'p1',
-      name: 'Sistema de Gestión de Laboratorios',
-      course: 'Sistemas de Información',
-      description:
-      'Aplicación web para reservar laboratorios, registrar prácticas y gestionar horarios.',
-      tasks: [
-        ProjectTask(id: 'p1t1', title: 'Diseñar caso de uso principal'),
-        ProjectTask(id: 'p1t2', title: 'Armar boceto de interfaz'),
-        ProjectTask(id: 'p1t3', title: 'Definir modelo de datos inicial'),
-      ],
-    ),
-    Project(
-      id: 'p2',
-      name: 'Plataforma de Tutorías UNIMET',
-      course: 'Ing. de Software',
-      description:
-      'Módulo para conectar tutores y estudiantes, agendar sesiones y registrar asistencia.',
-      tasks: [
-        ProjectTask(id: 'p2t1', title: 'Definir historias de usuario'),
-        ProjectTask(id: 'p2t2', title: 'Crear prototipo en Figma'),
-        ProjectTask(id: 'p2t3', title: 'Documentar API de reservas'),
-      ],
-    ),
-    Project(
-      id: 'p3',
-      name: 'Dashboard Académico',
-      course: 'Base de Datos',
-      description:
-      'Panel para visualizar promedios, aprobaciones y carga académica de los estudiantes.',
-      tasks: [
-        ProjectTask(id: 'p3t1', title: 'Diseñar esquema relacional'),
-        ProjectTask(id: 'p3t2', title: 'Crear consultas SQL de reportes'),
-        ProjectTask(id: 'p3t3', title: 'Armar gráfico de promedios'),
-      ],
-    ),
-  ];
+  /// NO hay proyectos de demo. Empieza en blanco.
+  final List<Project> allProjects = [];
 
   /// Proyectos suscritos por estudiante (email -> lista)
   final Map<String, List<StudentProjectData>> _studentProjects = {};
@@ -186,7 +154,8 @@ class ProjectRepository {
 
     return allProjects
         .where(
-          (p) => !subscribedIds.contains(p.id) && !requestedIds.contains(p.id),
+          (p) =>
+      !subscribedIds.contains(p.id) && !requestedIds.contains(p.id),
     )
         .toList();
   }
@@ -248,14 +217,87 @@ class ProjectRepository {
     list?.removeWhere((p) => p.id == project.id);
   }
 
-  /// Nuevo: permitir que el profesor cree proyectos
+  /// Crear un proyecto nuevo
   void addProject(Project project) {
     allProjects.add(project);
+  }
+
+  /// Para el dashboard del profesor: estadísticas globales
+  int get totalAssignedTasks {
+    int total = 0;
+    for (final list in _studentProjects.values) {
+      for (final sp in list) {
+        total += sp.tasks.length;
+      }
+    }
+    return total;
+  }
+
+  int get totalCompletedTasks {
+    int total = 0;
+    for (final list in _studentProjects.values) {
+      for (final sp in list) {
+        total += sp.tasks.where((t) => t.completed).length;
+      }
+    }
+    return total;
+  }
+}
+
+/// ------------------------ Chat privado ------------------------
+
+class ChatMessage {
+  final String fromEmail;
+  final String toEmail;
+  final String text;
+  final DateTime timestamp;
+
+  ChatMessage({
+    required this.fromEmail,
+    required this.toEmail,
+    required this.text,
+    required this.timestamp,
+  });
+}
+
+class ChatRepository {
+  ChatRepository._();
+
+  static final ChatRepository instance = ChatRepository._();
+
+  final Map<String, List<ChatMessage>> _threads = {};
+
+  String _threadId(String a, String b) {
+    final emails = [a.toLowerCase().trim(), b.toLowerCase().trim()]..sort();
+    return '${emails[0]}|${emails[1]}';
+  }
+
+  List<ChatMessage> getThread(String a, String b) {
+    final id = _threadId(a, b);
+    return _threads[id] ?? <ChatMessage>[];
+  }
+
+  void sendMessage({
+    required String from,
+    required String to,
+    required String text,
+  }) {
+    if (text.trim().isEmpty) return;
+    final id = _threadId(from, to);
+    final list = _threads.putIfAbsent(id, () => <ChatMessage>[]);
+    list.add(
+      ChatMessage(
+        fromEmail: from,
+        toEmail: to,
+        text: text.trim(),
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 }
 
 /// ======================== APP ROOT ========================
-// definición de la apariencia y la navegación de la aplicación.
+
 class MetroManagerApp extends StatelessWidget {
   const MetroManagerApp({super.key});
 
@@ -298,13 +340,13 @@ class MetroManagerApp extends StatelessWidget {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(.12),
+          backgroundColor: Colors.white.withOpacity(.14),
           foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.white.withOpacity(.12),
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -312,19 +354,11 @@ class MetroManagerApp extends StatelessWidget {
           foregroundColor: Colors.white,
           side: const BorderSide(color: Colors.white70),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         ),
-      ),
-      checkboxTheme: CheckboxThemeData(
-        side: const BorderSide(color: Colors.white70),
-        checkColor: MaterialStateProperty.all(kDeepBlue),
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) return Colors.white;
-          return Colors.transparent;
-        }),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -332,43 +366,311 @@ class MetroManagerApp extends StatelessWidget {
         contentTextStyle: const TextStyle(color: Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-        },
-      ),
     );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'MetroManager',
       theme: theme,
-      builder: (context, child) {
-        return ScrollConfiguration(
-          behavior: const _WebScrollBehavior(),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
-      initialRoute: '/',
-      routes: {
-        '/': (_) => const LoginPage(),
-        '/role': (_) => const RoleSelectPage(),
-        '/register': (_) => const RegisterPage(),
-        '/home': (_) => const HomePage(),
-        '/student/profile': (_) => const StudentProfilePage(),
-        '/professor/profile': (_) => const ProfessorProfilePage(),
-      },
+      home: const StartPage(),
     );
   }
 }
 
-/// ======================== LOGIN ========================
-// se realizó la representación del formulario de inicio de seción
-// y la logica de autenticación
+/// ======================== LOGO METROMANAGER ========================
+
+class MetroManagerLogo extends StatelessWidget {
+  final Color textColor;
+  final double size;
+
+  const MetroManagerLogo({
+    super.key,
+    this.textColor = Colors.white,
+    this.size = 18,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: kLogoOrange,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _bar(),
+                const SizedBox(width: 2),
+                _bar(height: 14),
+                const SizedBox(width: 2),
+                _bar(),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'MetroManager',
+          style: TextStyle(
+            color: textColor,
+            fontSize: size,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _bar({double height = 10}) {
+    return Container(
+      width: 4,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+/// ======================== PANTALLA INICIAL LIMPIA ========================
+
+class StartPage extends StatelessWidget {
+  const StartPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kDeepBlue,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              children: [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: MetroManagerLogo(),
+                ),
+                const SizedBox(height: 32),
+                Expanded(
+                  child: Row(
+                    children: [
+                      // Lado izquierdo: copy de bienvenida
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Bienvenido a MetroManager',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Organiza proyectos, tareas y la comunicación entre profesores y estudiantes '
+                                  'en un solo lugar. Empieza desde cero y ve construyendo tu espacio académico.',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: const [
+                                _FeatureChip(
+                                  icon: Icons.check_circle_outline,
+                                  label: 'Seguimiento de tareas',
+                                ),
+                                _FeatureChip(
+                                  icon: Icons.people_outline,
+                                  label: 'Colaboración profesor–estudiante',
+                                ),
+                                _FeatureChip(
+                                  icon: Icons.chat_bubble_outline,
+                                  label: 'Chat privado',
+                                ),
+                                _FeatureChip(
+                                  icon: Icons.bar_chart_outlined,
+                                  label: 'Dashboard de progreso',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 32),
+                            Row(
+                              children: [
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const LoginPage(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Iniciar sesión'),
+                                ),
+                                const SizedBox(width: 16),
+                                OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RegisterPage(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Crear cuenta'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      // Lado derecho: diseño limpio con iconos, sin datos falsos
+                      Expanded(
+                        flex: 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.07),
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(.12),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withOpacity(.12),
+                                ),
+                                child: const Icon(
+                                  Icons.dashboard_customize_outlined,
+                                  color: Colors.white,
+                                  size: 40,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Tu centro de control académico',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Crea proyectos, asigna tareas y revisa el avance de tus grupos en tiempo real.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                mainAxisAlignment:
+                                MainAxisAlignment.spaceEvenly,
+                                children: const [
+                                  _MiniIconInfo(
+                                    icon: Icons.assignment_outlined,
+                                    label: 'Proyectos claros',
+                                  ),
+                                  _MiniIconInfo(
+                                    icon: Icons.timeline_outlined,
+                                    label: 'Avance visible',
+                                  ),
+                                  _MiniIconInfo(
+                                    icon: Icons.shield_outlined,
+                                    label: 'Espacio seguro',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _FeatureChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 16, color: kDeepBlue),
+      label: Text(label),
+      backgroundColor: Colors.white,
+      labelStyle: const TextStyle(
+        color: kDeepBlue,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+class _MiniIconInfo extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MiniIconInfo({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: Colors.white),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+      ],
+    );
+  }
+}
+
+/// ======================== LOGIN & REGISTRO ========================
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -380,9 +682,9 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+
   bool _obscure = true;
-  bool _loading = false;
-  bool _remember = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -391,366 +693,160 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
-  }
-
-  Future<void> _onLogin() async {
+  void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    final user =
-    UserRepository.instance.login(_emailCtrl.text, _passCtrl.text);
-
-    setState(() => _loading = false);
+    final user = UserRepository.instance.login(
+      _emailCtrl.text,
+      _passCtrl.text,
+    );
 
     if (user == null) {
-      if (!UserRepository.instance.exists(_emailCtrl.text)) {
-        _showSnack(
-          'No estás registrado. Usa “Regístrate” para crear tu cuenta.',
-        );
-      } else {
-        _showSnack('Contraseña incorrecta. Inténtalo nuevamente.');
-      }
+      setState(() {
+        _error = 'Correo o contraseña incorrectos.';
+      });
       return;
     }
 
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/home', arguments: user);
+    setState(() => _error = null);
+
+    if (user.role == 'estudiante') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => StudentProfilePage(user: user),
+        ),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ProfessorProfilePage(user: user),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isWide = size.width >= 920.0;
-
-    final logoCard = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
-        child: Card(
-          color: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 28, vertical: 22),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _MetroMark(),
-                SizedBox(width: 18),
-                _LogoTitle(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    final form = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Form(
-            key: _formKey,
-            child: AutofillGroup(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 22),
-                  const Text(
-                    'Bienvenido',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
+    return Scaffold(
+      backgroundColor: kDeepBlue,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Card(
+            color: Colors.white,
+            elevation: 4,
+            shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const MetroManagerLogo(
+                      textColor: kDeepBlue,
+                      size: 20,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Inicia sesión para poder proceder',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white.withOpacity(.85),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Iniciar sesión',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: kDeepBlue,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  TextFormField(
-                    controller: _emailCtrl,
-                    autofillHints: const [AutofillHints.email],
-                    keyboardType: TextInputType.emailAddress,
-                    style: const TextStyle(color: Color(0xFF0E2238)),
-                    decoration: const InputDecoration(
-                      hintText:
-                      'usuario@correo.unimet.edu.ve o usuario@unimet.edu.ve',
-                      prefixIcon: Icon(Icons.alternate_email),
-                      suffixIcon: Icon(Icons.mail_outline),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Accede a tu panel como estudiante o profesor.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFF667085), fontSize: 12),
                     ),
-                    validator: _unimetEmailValidator,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Correo institucional',
+                        hintText: 'nombre@unimet.edu.ve',
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Ingresa tu correo.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passCtrl,
+                      obscureText: _obscure,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Ingresa tu contraseña.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (_error != null)
                       Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Icon(
-                          Icons.info_outline,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
-                          'Solo se permiten correos institucionales UNIMET\n'
-                              'Estudiantes: @correo.unimet.edu.ve\n'
-                              'Profesores: @unimet.edu.ve',
-                          style: TextStyle(fontSize: 13.5, color: Colors.white),
+                          _error!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passCtrl,
-                    autofillHints: const [AutofillHints.password],
-                    obscureText: _obscure,
-                    style: const TextStyle(color: Color(0xFF0E2238)),
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        tooltip: _obscure ? 'Mostrar' : 'Ocultar',
-                        icon: Icon(
-                          _obscure ? Icons.visibility : Icons.visibility_off,
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kDeepBlue,
+                          foregroundColor: Colors.white,
                         ),
-                        onPressed: () {
-                          setState(() => _obscure = !_obscure);
-                        },
+                        child: const Text('Entrar'),
                       ),
                     ),
-                    validator: _passwordValidator,
-                    onFieldSubmitted: (_) => _onLogin(),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Checkbox(
-                          value: _remember,
-                          onChanged: (v) =>
-                              setState(() => _remember = v ?? false),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Recordar Contraseña',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterPage(),
+                          ),
+                        );
+                      },
+                      child: const Text('Crear cuenta nueva'),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _onLogin,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_loading)
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                          if (_loading) const SizedBox(width: 10),
-                          const Text('Iniciar Sesión'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 6,
-                    children: const [
-                      Text(
-                        '¿No tienes cuenta?',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      _RegisterLink(),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
-
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isWide ? 60 : 18,
-              vertical: 40,
-            ),
-            child: Column(
-              children: [
-                logoCard,
-                const SizedBox(height: 26),
-                form,
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
-class _RegisterLink extends StatelessWidget {
-  const _RegisterLink();
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/role'),
-      child: const Text(
-        'Regístrate',
-        style: TextStyle(
-          color: kAccentYellow,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-/// ======================== ROLE SELECT ========================
-// en esta sección el usuartio podrá elegir el rol con el que se
-// registrará: estudiante o profesor
-class RoleSelectPage extends StatelessWidget {
-  const RoleSelectPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 36),
-            child: Column(
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 540),
-                    child: Card(
-                      color: Colors.white,
-                      surfaceTintColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Padding(
-                        padding:
-                        EdgeInsets.symmetric(horizontal: 28, vertical: 22),
-                        child: _LogoTitleRow(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Crear cuenta',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (_, c) {
-                    final two = c.maxWidth >= 720;
-                    final cards = [
-                      _RoleCard(
-                        icon: Icons.school_outlined,
-                        title: 'Estudiante',
-                        subtitle: 'Gestiona clases, tareas y más.',
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          '/register',
-                          arguments: 'estudiante',
-                        ),
-                        accentColor: kAccentYellow,
-                      ),
-                      _RoleCard(
-                        icon: Icons.person_outline,
-                        title: 'Profesor',
-                        subtitle: 'Organiza cursos y tus grupos.',
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          '/register',
-                          arguments: 'profesor',
-                        ),
-                        accentColor: Colors.white70,
-                      ),
-                    ];
-
-                    if (two) {
-                      return Row(
-                        children: [
-                          Expanded(child: cards[0]),
-                          const SizedBox(width: 16),
-                          Expanded(child: cards[1]),
-                        ],
-                      );
-                    }
-                    return Column(
-                      children: [
-                        cards[0],
-                        const SizedBox(height: 12),
-                        cards[1],
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.chevron_left, color: Colors.white),
-                  label: const Text(
-                    'Volver',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// ======================== REGISTER ========================
-// formulario y la lógica para crear un nuevo usuario
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -764,9 +860,11 @@ class _RegisterPageState extends State<RegisterPage> {
   final _apellidoCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  final _extraCtrl = TextEditingController(); // carrera o profesión
+  final _campoExtraCtrl = TextEditingController();
+
+  String _role = 'estudiante';
   bool _obscure = true;
-  bool _saving = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -774,398 +872,290 @@ class _RegisterPageState extends State<RegisterPage> {
     _apellidoCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
-    _extraCtrl.dispose();
+    _campoExtraCtrl.dispose();
     super.dispose();
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
-  }
-
-  Future<void> _onRegister(String role) async {
+  void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _saving = true);
-    await Future.delayed(const Duration(milliseconds: 360));
+    final repo = UserRepository.instance;
+    if (repo.exists(_emailCtrl.text)) {
+      setState(() {
+        _error = 'Ya existe una cuenta con ese correo.';
+      });
+      return;
+    }
 
     final user = AppUser(
-      role: role,
+      role: _role,
       nombre: _nombreCtrl.text.trim(),
       apellido: _apellidoCtrl.text.trim(),
       email: _emailCtrl.text.trim(),
       password: _passCtrl.text,
-      campoExtra: _extraCtrl.text.trim(),
+      campoExtra: _campoExtraCtrl.text.trim(),
     );
 
-    final ok = UserRepository.instance.register(user);
+    repo.register(user);
+    setState(() => _error = null);
 
-    setState(() => _saving = false);
-
-    if (!ok) {
-      _showSnack('Ese correo ya está registrado. Intenta iniciar sesión.');
-      return;
+    if (user.role == 'estudiante') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => StudentProfilePage(user: user),
+        ),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ProfessorProfilePage(user: user),
+        ),
+      );
     }
-
-    if (!mounted) return;
-    _showSnack('Registro exitoso. ¡Bienvenid@!');
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/home',
-          (r) => false,
-      arguments: user,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final role =
-        ModalRoute.of(context)?.settings.arguments as String? ?? 'estudiante';
-    final esEstudiante = role == 'estudiante';
-    final labelExtra = esEstudiante ? 'Carrera que estudias' : 'Profesión';
-
     return Scaffold(
+      backgroundColor: kDeepBlue,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 36),
-            child: Column(
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 540),
-                    child: Card(
-                      color: Colors.white,
-                      surfaceTintColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Padding(
-                        padding:
-                        EdgeInsets.symmetric(horizontal: 28, vertical: 22),
-                        child: _LogoTitleRow(),
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Card(
+            color: Colors.white,
+            shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    const Center(
+                      child: MetroManagerLogo(
+                        textColor: kDeepBlue,
+                        size: 20,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Registro - ${esEstudiante ? "Estudiante" : "Profesor"}',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 700),
-                  child: Card(
-                    color: Colors.white,
-                    surfaceTintColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Crear cuenta',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: kDeepBlue,
+                      ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Form(
-                        key: _formKey,
-                        child: AutofillGroup(
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _nombreCtrl,
-                                      textCapitalization:
-                                      TextCapitalization.words,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Nombre',
-                                        prefixIcon: Icon(Icons.badge_outlined),
-                                      ),
-                                      validator: _requiredValidator(
-                                          'Ingresa tu nombre'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _apellidoCtrl,
-                                      textCapitalization:
-                                      TextCapitalization.words,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Apellido',
-                                        prefixIcon: Icon(Icons.badge),
-                                      ),
-                                      validator: _requiredValidator(
-                                        'Ingresa tu apellido',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _emailCtrl,
-                                keyboardType: TextInputType.emailAddress,
-                                autofillHints: const [AutofillHints.email],
-                                decoration: const InputDecoration(
-                                  labelText: 'Correo UNIMET',
-                                  hintText:
-                                  'usuario@correo.unimet.edu.ve o usuario@unimet.edu.ve',
-                                  prefixIcon: Icon(Icons.email_outlined),
-                                ),
-                                validator: _unimetEmailValidator,
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _passCtrl,
-                                autofillHints: const [AutofillHints.newPassword],
-                                obscureText: _obscure,
-                                decoration: InputDecoration(
-                                  labelText: 'Contraseña',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  suffixIcon: IconButton(
-                                    tooltip: _obscure ? 'Mostrar' : 'Ocultar',
-                                    icon: Icon(
-                                      _obscure
-                                          ? Icons.visibility
-                                          : Icons.visibility_off,
-                                    ),
-                                    onPressed: () {
-                                      setState(() => _obscure = !_obscure);
-                                    },
-                                  ),
-                                ),
-                                validator: _passwordValidator,
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _extraCtrl,
-                                textCapitalization:
-                                TextCapitalization.sentences,
-                                decoration: InputDecoration(
-                                  labelText: labelExtra,
-                                  prefixIcon: Icon(
-                                    esEstudiante
-                                        ? Icons.school_outlined
-                                        : Icons.work_outline,
-                                  ),
-                                ),
-                                validator: _requiredValidator(
-                                  esEstudiante
-                                      ? 'Ingresa tu carrera'
-                                      : 'Ingresa tu profesión',
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  icon: _saving
-                                      ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                      : const Icon(Icons.person_add_alt),
-                                  label: const Text('Registrarse'),
-                                  onPressed:
-                                  _saving ? null : () => _onRegister(role),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextButton.icon(
-                                onPressed:
-                                _saving ? null : () => Navigator.pop(context),
-                                icon: const Icon(Icons.chevron_left),
-                                label: const Text('Volver'),
-                              ),
-                            ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Regístrate como estudiante o profesor.',
+                      style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Estudiante'),
+                            value: 'estudiante',
+                            groupValue: _role,
+                            onChanged: (v) =>
+                                setState(() => _role = v ?? 'estudiante'),
                           ),
                         ),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Profesor'),
+                            value: 'profesor',
+                            groupValue: _role,
+                            onChanged: (v) =>
+                                setState(() => _role = v ?? 'profesor'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _nombreCtrl,
+                      decoration: const InputDecoration(labelText: 'Nombre'),
+                      validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _apellidoCtrl,
+                      decoration: const InputDecoration(labelText: 'Apellido'),
+                      validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Correo institucional',
+                        hintText: 'nombre@unimet.edu.ve',
+                      ),
+                      validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _passCtrl,
+                      obscureText: _obscure,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                      validator: (v) =>
+                      v == null || v.length < 4 ? 'Mínimo 4 caracteres' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _campoExtraCtrl,
+                      decoration: InputDecoration(
+                        labelText:
+                        _role == 'estudiante' ? 'Carrera' : 'Profesión',
+                      ),
+                      validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 10),
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kDeepBlue,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Registrarme'),
                       ),
                     ),
-                  ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) => const LoginPage(),
+                          ),
+                        );
+                      },
+                      child: const Text('Ya tengo cuenta'),
+                    )
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
-  }
-}
-
-/// ======================== HOME (redirige a Perfil) ========================
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  bool _navigated = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_navigated) return;
-
-    final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
-    if (user == null) return;
-
-    _navigated = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        user.role == 'estudiante' ? '/student/profile' : '/professor/profile',
-        arguments: user,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: SizedBox.shrink());
   }
 }
 
 /// ======================== PERFIL ESTUDIANTE ========================
 
 class StudentProfilePage extends StatefulWidget {
-  const StudentProfilePage({super.key});
+  final AppUser user;
+
+  const StudentProfilePage({super.key, required this.user});
 
   @override
   State<StudentProfilePage> createState() => _StudentProfilePageState();
 }
 
 class _StudentProfilePageState extends State<StudentProfilePage> {
-  final _bioCtrl = TextEditingController();
-  final _cedulaCtrl = TextEditingController();
-  final _nombreCtrl = TextEditingController();
-  final _apellidoCtrl = TextEditingController();
-  late AppUser user;
-
-  int _tabIndex = 0; // 0:Inicio, 1:Proyectos, 2:Solicitudes, 3:Perfil
-
-  @override
-  void dispose() {
-    _bioCtrl.dispose();
-    _cedulaCtrl.dispose();
-    _nombreCtrl.dispose();
-    _apellidoCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    user = (ModalRoute.of(context)?.settings.arguments as AppUser?)!;
-    _bioCtrl.text = user.bio;
-    _cedulaCtrl.text = user.cedula;
-    _nombreCtrl.text = user.nombre;
-    _apellidoCtrl.text = user.apellido;
-  }
+  int _tabIndex = 0; // 0:Inicio, 1:Proyectos, 2:Solicitudes, 3:Chat, 4:Perfil
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.withOpacity(.08),
+      backgroundColor: kDeepBlue,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
+        backgroundColor: kDeepBlue,
         elevation: 0,
-        titleSpacing: 0,
-        title: Row(
-          children: const [
-            SizedBox(width: 16),
-            _MetroMark(),
-            SizedBox(width: 12),
-            Text(
-              'METRO MANAGER ESTUDIANTE',
-              style: TextStyle(
-                color: Color(0xFF0E2238),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
+        title: const MetroManagerLogo(),
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0E2238),
-                side: BorderSide(color: Colors.grey.withOpacity(.4)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
-              ),
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/',
-                    (r) => false,
-              ),
-              child: const Text('Salir'),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const StartPage()),
+                    (_) => false,
+              );
+            },
+            icon: const Icon(Icons.logout, color: Colors.white),
+            label: const Text(
+              'Salir',
+              style: TextStyle(color: Colors.white),
             ),
-          ),
+          )
         ],
       ),
-      body: Column(
+      body: Row(
         children: [
-          Container(
-            color: Colors.white,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 16),
-                    _TopTab(
-                      label: 'Página Principal',
-                      selected: _tabIndex == 0,
-                      onTap: () => setState(() => _tabIndex = 0),
-                    ),
-                    _TopTab(
-                      label: 'Mis Proyectos',
-                      selected: _tabIndex == 1,
-                      onTap: () => setState(() => _tabIndex = 1),
-                    ),
-                    _TopTab(
-                      label: 'Solicitudes Enviadas',
-                      selected: _tabIndex == 2,
-                      onTap: () => setState(() => _tabIndex = 2),
-                    ),
-                    _TopTab(
-                      label: 'Perfil',
-                      selected: _tabIndex == 3,
-                      onTap: () => setState(() => _tabIndex = 3),
-                    ),
-                  ],
-                ),
-              ),
+          NavigationRail(
+            backgroundColor: const Color(0xFF0B2947),
+            selectedIndex: _tabIndex,
+            onDestinationSelected: (i) => setState(() => _tabIndex = i),
+            labelType: NavigationRailLabelType.all,
+            selectedIconTheme:
+            const IconThemeData(color: Colors.white, size: 26),
+            selectedLabelTextStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: _buildTabBody(),
-                ),
+            unselectedIconTheme:
+            const IconThemeData(color: Colors.white70, size: 22),
+            unselectedLabelTextStyle:
+            const TextStyle(color: Colors.white70, fontSize: 12),
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: Text('Inicio'),
               ),
+              NavigationRailDestination(
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon: Icon(Icons.assignment),
+                label: Text('Proyectos'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.mail_outline),
+                selectedIcon: Icon(Icons.mail),
+                label: Text('Solicitudes'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.chat_bubble_outline),
+                selectedIcon: Icon(Icons.chat_bubble),
+                label: Text('Chat'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: Text('Perfil'),
+              ),
+            ],
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildBody(),
             ),
           ),
         ],
@@ -1173,566 +1163,188 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     );
   }
 
-  Widget _buildTabBody() {
+  Widget _buildBody() {
     switch (_tabIndex) {
       case 0:
-        return StudentHomeSection(
-          user: user,
-          onGoToProjects: () => setState(() => _tabIndex = 1),
-          onGoToRequests: () => setState(() => _tabIndex = 2),
-          onGoToProfile: () => setState(() => _tabIndex = 3),
-        );
+        return StudentHomeSection(user: widget.user);
       case 1:
-        return StudentProjectsSection(user: user);
+        return StudentProjectsSection(user: widget.user);
       case 2:
-        return StudentRequestsSection(user: user);
+        return StudentRequestsPage(user: widget.user);
       case 3:
+        return StudentChatPage(user: widget.user);
+      case 4:
       default:
-        return _profileContent();
+        return StudentProfileForm(user: widget.user);
     }
-  }
-
-  Widget _profileContent() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // IZQUIERDA
-        Expanded(
-          flex: 3,
-          child: Card(
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _FieldBlock(
-                    title: 'Nombre y Apellido',
-                    controllerLeft: _nombreCtrl,
-                    controllerRight: _apellidoCtrl,
-                  ),
-                  const SizedBox(height: 18),
-                  _FieldBlock.single(
-                    title: 'Cédula',
-                    controller: _cedulaCtrl,
-                    hint: 'Ej: 31894531',
-                  ),
-                  const SizedBox(height: 18),
-                  _FieldBlock.single(
-                    title: 'Carrera / Profesión',
-                    controller: TextEditingController(text: user.campoExtra),
-                    hint: 'Tu carrera o profesión',
-                    readOnly: true,
-                  ),
-                  const SizedBox(height: 18),
-                  _FieldBlock.single(
-                    title: 'Correo Electrónico',
-                    controller: TextEditingController(text: user.email),
-                    hint: 'correo@correo.unimet.edu.ve',
-                    readOnly: true,
-                  ),
-                  const SizedBox(height: 24),
-                  Align(
-                    alignment: Alignment.center,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kDeepBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 28,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: _saveChanges,
-                      child: const Text('Guardar Cambios'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 18),
-        // DERECHA (BIO)
-        Expanded(
-          flex: 2,
-          child: Card(
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Biografía Personal',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0E2238),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '(Opcional)',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _bioCtrl,
-                    maxLines: 10,
-                    decoration: const InputDecoration(
-                      hintText: 'Escribe algo sobre ti...',
-                      enabledBorder: OutlineInputBorder(
-                        borderSide:
-                        BorderSide(color: kAccentYellow, width: 1.2),
-                        borderRadius: BorderRadius.all(Radius.circular(12)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide:
-                        BorderSide(color: kAccentYellow, width: 1.6),
-                        borderRadius: BorderRadius.all(Radius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _saveChanges() {
-    setState(() {
-      user.nombre = _nombreCtrl.text.trim();
-      user.apellido = _apellidoCtrl.text.trim();
-      user.cedula = _cedulaCtrl.text.trim();
-      user.bio = _bioCtrl.text.trim();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Perfil actualizado')),
-    );
   }
 }
 
-/// ======================== SECCIONES ESTUDIANTE ========================
-
-/// Home del estudiante
 class StudentHomeSection extends StatelessWidget {
   final AppUser user;
-  final VoidCallback onGoToProjects;
-  final VoidCallback onGoToRequests;
-  final VoidCallback onGoToProfile;
 
-  const StudentHomeSection({
-    super.key,
-    required this.user,
-    required this.onGoToProjects,
-    required this.onGoToRequests,
-    required this.onGoToProfile,
-  });
+  const StudentHomeSection({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Card(
-        color: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _buildHeader()),
-                  const SizedBox(width: 16),
-                  _buildQuickProfileCard(),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _buildSummaryRow(),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth > 780;
-                  if (isWide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildNewsCard()),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildQuickActionsCard()),
-                      ],
-                    );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildNewsCard(),
-                      const SizedBox(height: 16),
-                      _buildQuickActionsCard(),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// HERO
-  Widget _buildHeader() {
-    final nombre = user.nombre.isEmpty ? 'Estudiante' : user.nombre;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [kDeepBlue, Color(0xFF174773)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hola, $nombre 👋',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Este es tu panel inicial de MetroManager. Revisa tu progreso, novedades y próximas acciones.',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: const [
-                    _BubbleChip(
-                      icon: Icons.check_circle_outline,
-                      label: 'Tareas del día',
-                    ),
-                    _BubbleChip(
-                      icon: Icons.school_outlined,
-                      label: 'Cursos clave',
-                    ),
-                    _BubbleChip(
-                      icon: Icons.emoji_events_outlined,
-                      label: 'Meta semanal',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 110,
-            height: 100,
-            child: Stack(
-              children: [
-                Positioned(
-                  bottom: 0,
-                  left: 8,
-                  right: 8,
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Icon(
-                      Icons.dashboard_customize_outlined,
-                      color: Colors.white,
-                      size: 30,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 0,
-                  child: _floatingCircleIcon(
-                    Icons.notifications_active_outlined,
-                  ),
-                ),
-                Positioned(
-                  top: 24,
-                  left: 0,
-                  child: _floatingCircleIcon(
-                    Icons.auto_graph_outlined,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickProfileCard() {
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: kAccentYellow.withOpacity(.10),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Resumen de perfil',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0E2238),
-            ),
-          ),
-          const SizedBox(height: 10),
-          _infoRow(Icons.badge_outlined, '${user.nombre} ${user.apellido}'),
-          const SizedBox(height: 6),
-          _infoRow(Icons.school_outlined, user.campoExtra),
-          const SizedBox(height: 6),
-          _infoRow(Icons.email_outlined, user.email),
-          const SizedBox(height: 6),
-          _infoRow(
-            Icons.credit_card_outlined,
-            user.cedula.isEmpty ? 'Cédula no registrada' : user.cedula,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: const Color(0xFF0E2238)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: Color(0xFF0E2238),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryRow() {
     final repo = ProjectRepository.instance;
-    final projects = repo.getStudentProjects(user.email);
-    final requests = repo.getStudentRequests(user.email);
+    final proyectos = repo.getStudentProjects(user.email);
+    final totalTareas =
+    proyectos.fold<int>(0, (sum, sp) => sum + sp.tasks.length);
+    final completadas = proyectos.fold<int>(
+        0, (sum, sp) => sum + sp.tasks.where((t) => t.completed).length);
 
-    final progress = projects.isEmpty
-        ? 0.0
-        : projects.map((p) => p.progress).fold(0.0, (a, b) => a + b) /
-        projects.length;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 700;
-        final cards = [
-          DashboardSummaryCard(
-            icon: Icons.work_outline,
-            title: 'Proyectos activos',
-            value: projects.length.toString(),
-            subtitle: 'Proyectos en los que estás suscrito.',
-          ),
-          DashboardSummaryCard(
-            icon: Icons.mark_email_read_outlined,
-            title: 'Solicitudes',
-            value: requests.length.toString(),
-            subtitle: 'Invitaciones pendientes de profesores.',
-          ),
-          DashboardSummaryCard(
-            icon: Icons.trending_up,
-            title: 'Progreso promedio',
-            value: '${(progress * 100).round()}%',
-            subtitle: 'Basado en tareas marcadas como completadas.',
-          ),
-        ];
-
-        if (isWide) {
-          return Row(
-            children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 12),
-              Expanded(child: cards[1]),
-              const SizedBox(width: 12),
-              Expanded(child: cards[2]),
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            cards[0],
-            const SizedBox(height: 12),
-            cards[1],
-            const SizedBox(height: 12),
-            cards[2],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildNewsCard() {
-    final noticias = [
-      {
-        'titulo': 'Nueva fecha para entrega de Proyecto 1',
-        'detalle':
-        'El profesor ajustó la entrega para el próximo lunes a las 11:59 p.m.',
-      },
-      {
-        'titulo': 'Coaching de proyectos este jueves',
-        'detalle':
-        'Sesión virtual para dudas técnicas de Sistemas de Información.',
-      },
-      {
-        'titulo': 'Recordatorio: subir avances semanales',
-        'detalle':
-        'Actualiza tus tareas completadas para mantener tu progreso al día.',
-      },
-    ];
+    final progreso = totalTareas == 0 ? 0.0 : completadas / totalTareas;
 
     return Card(
-      elevation: 0,
-      color: Colors.grey.withOpacity(.03),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Novedades',
-              style: TextStyle(
-                fontSize: 16,
+            Text(
+              'Hola, ${user.nombre}',
+              style: const TextStyle(
+                fontSize: 20,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF0E2238),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             const Text(
-              'Lo más importante de tus cursos y proyectos.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF667085),
-              ),
+              'Aquí puedes ver un resumen rápido de tu avance.',
+              style: TextStyle(color: Color(0xFF667085), fontSize: 13),
             ),
-            const SizedBox(height: 14),
-            ...noticias.map(
-                  (n) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      n['titulo'] as String,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0E2238),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      n['detalle'] as String,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF667085),
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Proyectos activos',
+                    value: proyectos.length.toString(),
+                    icon: Icons.assignment_outlined,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Tareas completadas',
+                    value: completadas.toString(),
+                    icon: Icons.check_circle_outline,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Progreso total',
+                    value: '${(progreso * 100).round()}%',
+                    icon: Icons.timeline_outlined,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionsCard() {
-    return Card(
-      elevation: 0,
-      color: Colors.grey.withOpacity(.03),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            const SizedBox(height: 24),
             const Text(
               'Acciones rápidas',
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0E2238),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _quickActionButton(
-                  icon: Icons.work_outline,
-                  label: 'Ver mis proyectos',
-                  onTap: onGoToProjects,
-                ),
-                _quickActionButton(
-                  icon: Icons.mark_email_read_outlined,
-                  label: 'Revisar solicitudes',
-                  onTap: onGoToRequests,
-                ),
-                _quickActionButton(
-                  icon: Icons.person_outline,
-                  label: 'Editar perfil',
-                  onTap: onGoToProfile,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Tips rápidos',
-              style: TextStyle(
-                fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF0E2238),
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              '• Mantén tus datos actualizados en el perfil.\n'
-                  '• Revisa tus actividades al entrar.\n'
-                  '• Usa la barra de progreso de cada proyecto para no perderte.',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: Color(0xFF667085),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _QuickActionButton(
+                  icon: Icons.assignment,
+                  label: 'Ver mis proyectos',
+                  onTap: () {
+                    final state = context.findAncestorStateOfType<
+                        _StudentProfilePageState>();
+                    state?.setState(() => state._tabIndex = 1);
+                  },
+                ),
+                _QuickActionButton(
+                  icon: Icons.mail,
+                  label: 'Ver solicitudes',
+                  onTap: () {
+                    final state = context.findAncestorStateOfType<
+                        _StudentProfilePageState>();
+                    state?.setState(() => state._tabIndex = 2);
+                  },
+                ),
+                _QuickActionButton(
+                  icon: Icons.chat_bubble,
+                  label: 'Abrir chat',
+                  onTap: () {
+                    final state = context.findAncestorStateOfType<
+                        _StudentProfilePageState>();
+                    state?.setState(() => state._tabIndex = 3);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardSummaryCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _DashboardSummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.grey.withOpacity(.04),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kAccentYellow.withOpacity(.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: kDeepBlue),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0E2238),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF667085),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1740,80 +1352,33 @@ class StudentHomeSection extends StatelessWidget {
       ),
     );
   }
-
-  Widget _quickActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: 200,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18),
-        label: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-        ),
-        style: OutlinedButton.styleFrom(
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          side: BorderSide(color: Colors.grey.withOpacity(.5)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-/// Chips
-
-class _BubbleChip extends StatelessWidget {
+class _QuickActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
-  const _BubbleChip({required this.icon, required this.label});
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, size: 16, color: kDeepBlue),
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
       label: Text(label),
-      backgroundColor: Colors.white,
-      labelStyle: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: kDeepBlue,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF0E2238),
+        side: const BorderSide(color: Color(0xFFCBD5E1)),
+        backgroundColor: Colors.white,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 6),
     );
   }
 }
-
-Widget _floatingCircleIcon(IconData icon) {
-  return Container(
-    width: 28,
-    height: 28,
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(.18),
-      shape: BoxShape.circle,
-      border: Border.all(color: Colors.white.withOpacity(.5)),
-    ),
-    child: Icon(
-      icon,
-      size: 16,
-      color: Colors.white,
-    ),
-  );
-}
-
-/// ---- Mis Proyectos ----
 
 class StudentProjectsSection extends StatefulWidget {
   final AppUser user;
@@ -1829,12 +1394,10 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
   Widget build(BuildContext context) {
     final repo = ProjectRepository.instance;
     final proyectos = repo.getStudentProjects(widget.user.email);
-    final disponibles = repo.getAvailableProjectsForStudent(widget.user.email);
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Proyectos actuales
+        // Mis proyectos (aquí está la barra por proyecto)
         Expanded(
           flex: 3,
           child: Card(
@@ -1856,7 +1419,7 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                   if (proyectos.isEmpty)
                     const Text(
                       'Aún no estás suscrito a ningún proyecto.\n'
-                          'Acepta una solicitud o suscríbete desde la lista de la derecha.',
+                          'Acepta una solicitud o espera a que un profesor te asigne una.',
                       style: TextStyle(color: Color(0xFF667085)),
                     ),
                   if (proyectos.isNotEmpty)
@@ -1897,9 +1460,7 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                                   ),
                                   const SizedBox(height: 8),
                                   LinearProgressIndicator(
-                                    value: progress == 0 && sp.tasks.isEmpty
-                                        ? 0
-                                        : progress,
+                                    value: progress,
                                     minHeight: 8,
                                     backgroundColor:
                                     Colors.grey.withOpacity(.2),
@@ -1930,18 +1491,20 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                                       dense: true,
                                       title: Text(
                                         t.title,
-                                        style: const TextStyle(fontSize: 13),
+                                        style:
+                                        const TextStyle(fontSize: 13),
                                       ),
                                       value: t.completed,
                                       onChanged: (v) {
                                         setState(() {
-                                          t.completed = v ?? false;
+                                          final checked = v ?? false;
+                                          t.completed = checked;
                                           ProjectRepository.instance
                                               .updateTaskStatus(
                                             widget.user.email,
                                             sp.project.id,
                                             t.id,
-                                            v ?? false,
+                                            checked,
                                           );
                                         });
                                       },
@@ -1959,8 +1522,8 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
             ),
           ),
         ),
-        const SizedBox(width: 18),
-        // Proyectos disponibles
+        const SizedBox(width: 16),
+        // Proyectos disponibles (solo info, sin demo pre-asignado)
         Expanded(
           flex: 2,
           child: Card(
@@ -1973,47 +1536,61 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                   const Text(
                     'Proyectos disponibles',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF0E2238),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (disponibles.isEmpty)
-                    const Text(
-                      'No hay más proyectos disponibles por ahora.',
-                      style: TextStyle(color: Color(0xFF667085)),
+                  const Text(
+                    'Estos son los proyectos que los profesores han configurado. '
+                        'Puedes verlos y esperar a que te asignen o te envíen una solicitud.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF667085),
                     ),
-                  if (disponibles.isNotEmpty)
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: disponibles.length,
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Builder(builder: (context) {
+                      final projects = ProjectRepository.instance.allProjects;
+                      if (projects.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'Todavía no hay proyectos configurados.',
+                            style: TextStyle(color: Color(0xFF667085)),
+                          ),
+                        );
+                      }
+                      return ListView.separated(
+                        itemCount: projects.length,
                         separatorBuilder: (_, __) =>
                         const SizedBox(height: 10),
                         itemBuilder: (_, index) {
-                          final p = disponibles[index];
+                          final p = projects[index];
                           return Card(
                             elevation: 0,
-                            color: Colors.grey.withOpacity(.03),
+                            color: Colors.grey.withOpacity(.04),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(14),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     p.name,
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     p.course,
                                     style: const TextStyle(
-                                      fontSize: 12,
+                                      fontSize: 13,
                                       color: Color(0xFF667085),
                                     ),
                                   ),
@@ -2026,36 +1603,34 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          ProjectRepository.instance
-                                              .subscribeStudentToProject(
-                                            widget.user.email,
-                                            p,
-                                          );
-                                        });
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Te suscribiste a "${p.name}"',
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      child: const Text('Suscribirme'),
+                                  const Text(
+                                    'Tareas:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
+                                  const SizedBox(height: 4),
+                                  if (p.tasks.isEmpty)
+                                    const Text(
+                                      '• (Sin tareas definidas aún)',
+                                      style: TextStyle(fontSize: 12),
+                                    )
+                                  else
+                                    ...p.tasks.map(
+                                          (t) => Text(
+                                        '• ${t.title}',
+                                        style:
+                                        const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
                           );
                         },
-                      ),
-                    ),
+                      );
+                    }),
+                  ),
                 ],
               ),
             ),
@@ -2066,22 +1641,20 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
   }
 }
 
-/// ---- Solicitudes Enviadas ----
-
-class StudentRequestsSection extends StatefulWidget {
+class StudentRequestsPage extends StatefulWidget {
   final AppUser user;
 
-  const StudentRequestsSection({super.key, required this.user});
+  const StudentRequestsPage({super.key, required this.user});
 
   @override
-  State<StudentRequestsSection> createState() => _StudentRequestsSectionState();
+  State<StudentRequestsPage> createState() => _StudentRequestsPageState();
 }
 
-class _StudentRequestsSectionState extends State<StudentRequestsSection> {
+class _StudentRequestsPageState extends State<StudentRequestsPage> {
   @override
   Widget build(BuildContext context) {
     final repo = ProjectRepository.instance;
-    final solicitudes = repo.getStudentRequests(widget.user.email);
+    final requests = repo.getStudentRequests(widget.user.email);
 
     return Card(
       color: Colors.white,
@@ -2091,7 +1664,7 @@ class _StudentRequestsSectionState extends State<StudentRequestsSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Solicitudes recibidas',
+              'Solicitudes de proyectos',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -2100,110 +1673,66 @@ class _StudentRequestsSectionState extends State<StudentRequestsSection> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Aquí aparecen las invitaciones de profesores para unirte a proyectos.',
+              'Acepta o rechaza solicitudes enviadas por tus profesores.',
               style: TextStyle(
                 fontSize: 13,
                 color: Color(0xFF667085),
               ),
             ),
             const SizedBox(height: 16),
-            if (solicitudes.isEmpty)
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'Todavía no tienes solicitudes.\nCuando un profesor te invite, aparecerá aquí.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF667085)),
-                  ),
-                ),
+            if (requests.isEmpty)
+              const Text(
+                'No tienes solicitudes pendientes en este momento.',
+                style: TextStyle(color: Color(0xFF667085)),
               ),
-            if (solicitudes.isNotEmpty)
+            if (requests.isNotEmpty)
               Expanded(
                 child: ListView.separated(
-                  itemCount: solicitudes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemCount: requests.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, index) {
-                    final p = solicitudes[index];
+                    final p = requests[index];
                     return Card(
                       elevation: 0,
                       color: Colors.grey.withOpacity(.04),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      child: ListTile(
+                        title: Text(p.name),
+                        subtitle: Text(p.course),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              p.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0E2238),
+                            IconButton(
+                              tooltip: 'Rechazar',
+                              onPressed: () {
+                                setState(() {
+                                  ProjectRepository.instance.rejectRequest(
+                                    widget.user.email,
+                                    p,
+                                  );
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.red,
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              p.course,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF667085),
+                            IconButton(
+                              tooltip: 'Aceptar',
+                              onPressed: () {
+                                setState(() {
+                                  ProjectRepository.instance.acceptRequest(
+                                    widget.user.email,
+                                    p,
+                                  );
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.check,
+                                color: Colors.green,
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              p.description,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF667085),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        ProjectRepository.instance
-                                            .acceptRequest(
-                                          widget.user.email,
-                                          p,
-                                        );
-                                      });
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Aceptaste la solicitud de "${p.name}"',
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kDeepBlue,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('Aceptar'),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        ProjectRepository.instance
-                                            .rejectRequest(
-                                          widget.user.email,
-                                          p,
-                                        );
-                                      });
-                                    },
-                                    child: const Text('Rechazar'),
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -2219,116 +1748,289 @@ class _StudentRequestsSectionState extends State<StudentRequestsSection> {
   }
 }
 
+class StudentChatPage extends StatefulWidget {
+  final AppUser user;
+
+  const StudentChatPage({super.key, required this.user});
+
+  @override
+  State<StudentChatPage> createState() => _StudentChatPageState();
+}
+
+class _StudentChatPageState extends State<StudentChatPage> {
+  AppUser? _selectedProfessor;
+  final _msgCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _msgCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final professors = UserRepository.instance.professors;
+
+    return Card(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Padding(
+            padding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Chat con profesores',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0E2238),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Selecciona un profesor y conversa de forma privada.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF667085),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<AppUser>(
+                  value: _selectedProfessor,
+                  decoration: const InputDecoration(
+                    labelText: 'Profesor',
+                  ),
+                  items: professors
+                      .map(
+                        (p) => DropdownMenuItem(
+                      value: p,
+                      child: Text('${p.nombre} ${p.apellido}'),
+                    ),
+                  )
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedProfessor = v),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _selectedProfessor == null
+                ? const Center(
+              child: Text(
+                'Selecciona un profesor para ver la conversación.',
+                style: TextStyle(color: Color(0xFF667085)),
+              ),
+            )
+                : _ChatThread(
+              current: widget.user,
+              other: _selectedProfessor!,
+            ),
+          ),
+          if (_selectedProfessor != null)
+            _ChatInputBar(
+              controller: _msgCtrl,
+              onSend: () {
+                final text = _msgCtrl.text.trim();
+                if (text.isEmpty) return;
+                ChatRepository.instance.sendMessage(
+                  from: widget.user.email,
+                  to: _selectedProfessor!.email,
+                  text: text,
+                );
+                _msgCtrl.clear();
+                setState(() {});
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class StudentProfileForm extends StatefulWidget {
+  final AppUser user;
+
+  const StudentProfileForm({super.key, required this.user});
+
+  @override
+  State<StudentProfileForm> createState() => _StudentProfileFormState();
+}
+
+class _StudentProfileFormState extends State<StudentProfileForm> {
+  late final TextEditingController _cedulaCtrl;
+  late final TextEditingController _bioCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _cedulaCtrl = TextEditingController(text: widget.user.cedula);
+    _bioCtrl = TextEditingController(text: widget.user.bio);
+  }
+
+  @override
+  void dispose() {
+    _cedulaCtrl.dispose();
+    _bioCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: ListView(
+          children: [
+            const Text(
+              'Mi perfil',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0E2238),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _FieldRowStatic(
+              label: 'Nombre y Apellido',
+              value: '${widget.user.nombre} ${widget.user.apellido}',
+            ),
+            const SizedBox(height: 12),
+            _FieldRowStatic(
+              label: 'Carrera',
+              value: widget.user.campoExtra,
+            ),
+            const SizedBox(height: 12),
+            _FieldRowStatic(
+              label: 'Correo',
+              value: widget.user.email,
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _cedulaCtrl,
+              decoration: const InputDecoration(labelText: 'Cédula'),
+              keyboardType: TextInputType.number,
+              onChanged: (v) => widget.user.cedula = v.trim(),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _bioCtrl,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Sobre mí',
+                alignLabelWithHint: true,
+              ),
+              onChanged: (v) => widget.user.bio = v.trim(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// ======================== PERFIL PROFESOR ========================
 
 class ProfessorProfilePage extends StatefulWidget {
-  const ProfessorProfilePage({super.key});
+  final AppUser user;
+
+  const ProfessorProfilePage({super.key, required this.user});
 
   @override
   State<ProfessorProfilePage> createState() => _ProfessorProfilePageState();
 }
 
 class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
-  int _tabIndex = 0; // 0:Inicio, 1:Proyectos, 2:Estudiantes, 3:Perfil
-  late AppUser user;
-
-  String? _selectedStudentEmail;
+  int _tabIndex = 0; // 0:Dashboard, 1:Proyectos, 2:Estudiantes, 3:Chat, 4:Perfil
+  AppUser? _selectedStudentForChat;
+  final TextEditingController _profChatCtrl = TextEditingController();
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    user = (ModalRoute.of(context)?.settings.arguments as AppUser?)!;
+  void dispose() {
+    _profChatCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.user;
+
     return Scaffold(
-      backgroundColor: Colors.grey.withOpacity(.08),
+      backgroundColor: kDeepBlue,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
+        backgroundColor: kDeepBlue,
         elevation: 0,
-        titleSpacing: 0,
-        title: Row(
-          children: const [
-            SizedBox(width: 16),
-            _MetroMark(),
-            SizedBox(width: 12),
-            Text(
-              'METRO MANAGER PROFESOR',
-              style: TextStyle(
-                color: Color(0xFF0E2238),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
+        title: const MetroManagerLogo(),
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0E2238),
-                side: BorderSide(color: Colors.grey.withOpacity(.4)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
-              ),
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/',
-                    (r) => false,
-              ),
-              child: const Text('Salir'),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const StartPage()),
+                    (_) => false,
+              );
+            },
+            icon: const Icon(Icons.logout, color: Colors.white),
+            label: const Text(
+              'Salir',
+              style: TextStyle(color: Colors.white),
             ),
           ),
         ],
       ),
-      body: Column(
+      body: Row(
         children: [
-          Container(
-            color: Colors.white,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 16),
-                    _TopTab(
-                      label: 'Página Principal',
-                      selected: _tabIndex == 0,
-                      onTap: () => setState(() => _tabIndex = 0),
-                    ),
-                    _TopTab(
-                      label: 'Proyectos',
-                      selected: _tabIndex == 1,
-                      onTap: () => setState(() => _tabIndex = 1),
-                    ),
-                    _TopTab(
-                      label: 'Estudiantes',
-                      selected: _tabIndex == 2,
-                      onTap: () => setState(() => _tabIndex = 2),
-                    ),
-                    _TopTab(
-                      label: 'Perfil',
-                      selected: _tabIndex == 3,
-                      onTap: () => setState(() => _tabIndex = 3),
-                    ),
-                  ],
-                ),
-              ),
+          NavigationRail(
+            backgroundColor: const Color(0xFF0B2947),
+            selectedIndex: _tabIndex,
+            onDestinationSelected: (i) => setState(() => _tabIndex = i),
+            labelType: NavigationRailLabelType.all,
+            selectedIconTheme:
+            const IconThemeData(color: Colors.white, size: 26),
+            selectedLabelTextStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: _buildBody(),
-                ),
+            unselectedIconTheme:
+            const IconThemeData(color: Colors.white70, size: 22),
+            unselectedLabelTextStyle:
+            const TextStyle(color: Colors.white70, fontSize: 12),
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard),
+                label: Text('Dashboard'),
               ),
+              NavigationRailDestination(
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon: Icon(Icons.assignment),
+                label: Text('Proyectos'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.people_outline),
+                selectedIcon: Icon(Icons.people),
+                label: Text('Estudiantes'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.chat_bubble_outline),
+                selectedIcon: Icon(Icons.chat_bubble),
+                label: Text('Chat'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: Text('Perfil'),
+              ),
+            ],
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildBody(user),
             ),
           ),
         ],
@@ -2336,30 +2038,40 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppUser user) {
     switch (_tabIndex) {
       case 0:
-        return _professorDashboard();
+        return _professorDashboard(user);
       case 1:
         return _projectsManagement();
       case 2:
         return _studentsManagement();
       case 3:
+        return _chatManagement(user);
+      case 4:
       default:
-        return _professorProfile();
+        return _professorProfile(user);
     }
   }
 
-  Widget _professorDashboard() {
+  Widget _professorDashboard(AppUser user) {
     final students = UserRepository.instance.students;
     final totalProjects = ProjectRepository.instance.allProjects.length;
+    final totalTasks = ProjectRepository.instance.totalAssignedTasks;
+    final completedTasks = ProjectRepository.instance.totalCompletedTasks;
+    final completionRate =
+    totalTasks == 0 ? 0.0 : completedTasks / totalTasks;
 
     return ProfessorHomeSection(
       user: user,
       totalStudents: students.length,
       totalProjects: totalProjects,
+      totalTasks: totalTasks,
+      completedTasks: completedTasks,
+      completionRate: completionRate,
       onGoToProjects: () => setState(() => _tabIndex = 1),
       onGoToStudents: () => setState(() => _tabIndex = 2),
+      onGoToChat: () => setState(() => _tabIndex = 3),
       onCreateProject: _openCreateProjectDialog,
     );
   }
@@ -2404,9 +2116,17 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: ListView.separated(
+              child: projects.isEmpty
+                  ? const Center(
+                child: Text(
+                  'Aún no has creado proyectos.',
+                  style: TextStyle(color: Color(0xFF667085)),
+                ),
+              )
+                  : ListView.separated(
                 itemCount: projects.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, __) =>
+                const SizedBox(height: 12),
                 itemBuilder: (_, index) {
                   final p = projects[index];
                   return Card(
@@ -2455,13 +2175,15 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                             const Text(
                               '• (Sin tareas definidas aún)',
                               style: TextStyle(fontSize: 12),
+                            )
+                          else
+                            ...p.tasks.map(
+                                  (t) => Text(
+                                '• ${t.title}',
+                                style:
+                                const TextStyle(fontSize: 12),
+                              ),
                             ),
-                          ...p.tasks.map(
-                                (t) => Text(
-                              '• ${t.title}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -2506,15 +2228,15 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedStudentEmail,
+                  child: DropdownButtonFormField<AppUser>(
                     decoration: const InputDecoration(
                       labelText: 'Estudiante',
                     ),
+                    value: _selectedStudentForChat,
                     items: students
                         .map(
                           (s) => DropdownMenuItem(
-                        value: s.email,
+                        value: s,
                         child: Text(
                           '${s.nombre} ${s.apellido} (${s.email})',
                         ),
@@ -2522,16 +2244,24 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                     )
                         .toList(),
                     onChanged: (v) =>
-                        setState(() => _selectedStudentEmail = v),
+                        setState(() => _selectedStudentForChat = v),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: ListView.separated(
+              child: projects.isEmpty
+                  ? const Center(
+                child: Text(
+                  'No hay proyectos para asignar todavía.',
+                  style: TextStyle(color: Color(0xFF667085)),
+                ),
+              )
+                  : ListView.separated(
                 itemCount: projects.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) =>
+                const SizedBox(height: 10),
                 itemBuilder: (_, index) {
                   final p = projects[index];
                   return ListTile(
@@ -2542,17 +2272,19 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                     title: Text(p.name),
                     subtitle: Text(p.course),
                     trailing: ElevatedButton(
-                      onPressed: _selectedStudentEmail == null
+                      onPressed: _selectedStudentForChat == null
                           ? null
                           : () {
-                        ProjectRepository.instance.addRequestForStudent(
-                          _selectedStudentEmail!,
+                        ProjectRepository.instance
+                            .addRequestForStudent(
+                          _selectedStudentForChat!.email,
                           p,
                         );
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Solicitud enviada a $_selectedStudentEmail',
+                              'Solicitud enviada a ${_selectedStudentForChat!.email}',
                             ),
                           ),
                         );
@@ -2569,7 +2301,92 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
     );
   }
 
-  Widget _professorProfile() {
+  Widget _chatManagement(AppUser user) {
+    final students = UserRepository.instance.students;
+
+    return Card(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Padding(
+            padding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Chat con estudiantes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0E2238),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Elige un estudiante para conversar de forma privada.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF667085),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<AppUser>(
+                  decoration: const InputDecoration(
+                    labelText: 'Estudiante',
+                  ),
+                  value: _selectedStudentForChat,
+                  items: students
+                      .map(
+                        (s) => DropdownMenuItem(
+                      value: s,
+                      child: Text(
+                        '${s.nombre} ${s.apellido}',
+                      ),
+                    ),
+                  )
+                      .toList(),
+                  onChanged: (v) =>
+                      setState(() => _selectedStudentForChat = v),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _selectedStudentForChat == null
+                ? const Center(
+              child: Text(
+                'Selecciona un estudiante para ver la conversación.',
+                style: TextStyle(color: Color(0xFF667085)),
+              ),
+            )
+                : _ChatThread(
+              current: user,
+              other: _selectedStudentForChat!,
+            ),
+          ),
+          if (_selectedStudentForChat != null)
+            _ChatInputBar(
+              controller: _profChatCtrl,
+              onSend: () {
+                final text = _profChatCtrl.text.trim();
+                if (text.isEmpty) return;
+                ChatRepository.instance.sendMessage(
+                  from: user.email,
+                  to: _selectedStudentForChat!.email,
+                  text: text,
+                );
+                _profChatCtrl.clear();
+                setState(() {});
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _professorProfile(AppUser user) {
     return Card(
       color: Colors.white,
       child: Padding(
@@ -2600,7 +2417,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
     );
   }
 
-  /// ********** DIÁLOGO NUEVO DE CREAR PROYECTO (ARREGLADO) **********
+  /// Diálogo para crear un proyecto nuevo sin romper nada
   Future<void> _openCreateProjectDialog() async {
     final nameCtrl = TextEditingController();
     final courseCtrl = TextEditingController();
@@ -2661,54 +2478,42 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                             setStateDialog(() {
                               tasks.add(text);
                               taskCtrl.clear();
-                              errorText = null;
                             });
                           },
-                          icon: const Icon(Icons.add_circle_outline),
+                          icon: const Icon(Icons.add),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     if (tasks.isNotEmpty)
-                      SizedBox(
-                        height: 140,
-                        child: ListView.builder(
-                          itemCount: tasks.length,
-                          itemBuilder: (_, index) {
-                            return ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(
-                                Icons.check_circle_outline,
-                                size: 18,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Tareas agregadas:',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
                               ),
-                              title: Text(
-                                tasks[index],
-                                style: const TextStyle(fontSize: 13),
+                            ),
+                            const SizedBox(height: 4),
+                            ...tasks.map(
+                                  (t) => Text(
+                                '• $t',
+                                style: const TextStyle(fontSize: 12),
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () {
-                                  setStateDialog(() {
-                                    tasks.removeAt(index);
-                                  });
-                                },
-                              ),
-                            );
-                          },
+                            ),
+                          ],
                         ),
                       ),
                     if (errorText != null) ...[
                       const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          errorText!,
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
+                      Text(
+                        errorText!,
+                        style:
+                        const TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ],
                   ],
@@ -2724,46 +2529,33 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                     final name = nameCtrl.text.trim();
                     final course = courseCtrl.text.trim();
                     final desc = descCtrl.text.trim();
-
                     if (name.isEmpty || course.isEmpty || desc.isEmpty) {
                       setStateDialog(() {
                         errorText =
-                        'Completa nombre, curso y descripción del proyecto.';
+                        'Todos los campos del proyecto son obligatorios.';
                       });
                       return;
                     }
-
-                    final projectId =
-                        'p_${DateTime.now().millisecondsSinceEpoch}';
-
-                    // Si no agregas tareas, se crea al menos una por defecto
-                    final taskList = tasks.isEmpty
-                        ? [
-                      ProjectTask(
-                        id: '${projectId}_t1',
-                        title:
-                        'Definir pasos y entregables para este proyecto',
-                      )
-                    ]
-                        : List.generate(
-                      tasks.length,
-                          (index) => ProjectTask(
-                        id: '${projectId}_t${index + 1}',
-                        title: tasks[index],
-                      ),
-                    );
-
+                    final now = DateTime.now().millisecondsSinceEpoch;
                     final project = Project(
-                      id: projectId,
+                      id: 'p_$now',
                       name: name,
                       course: course,
                       description: desc,
-                      tasks: taskList,
+                      tasks: tasks
+                          .asMap()
+                          .entries
+                          .map(
+                            (e) => ProjectTask(
+                          id: 't_${e.key}_$now',
+                          title: e.value,
+                        ),
+                      )
+                          .toList(),
                     );
-
                     Navigator.of(dialogContext).pop(project);
                   },
-                  child: const Text('Guardar'),
+                  child: const Text('Crear'),
                 ),
               ],
             );
@@ -2776,24 +2568,22 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
       setState(() {
         ProjectRepository.instance.addProject(newProject);
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Proyecto "${newProject.name}" creado'),
-        ),
-      );
     }
   }
 }
 
-/// Home del profesor
+/// ======================== COMPONENTES COMPARTIDOS ========================
 
 class ProfessorHomeSection extends StatelessWidget {
   final AppUser user;
   final int totalStudents;
   final int totalProjects;
+  final int totalTasks;
+  final int completedTasks;
+  final double completionRate;
   final VoidCallback onGoToProjects;
   final VoidCallback onGoToStudents;
+  final VoidCallback onGoToChat;
   final VoidCallback onCreateProject;
 
   const ProfessorHomeSection({
@@ -2801,566 +2591,112 @@ class ProfessorHomeSection extends StatelessWidget {
     required this.user,
     required this.totalStudents,
     required this.totalProjects,
+    required this.totalTasks,
+    required this.completedTasks,
+    required this.completionRate,
     required this.onGoToProjects,
     required this.onGoToStudents,
+    required this.onGoToChat,
     required this.onCreateProject,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Card(
-        color: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: DashboardSummaryCard(
-                      icon: Icons.people_outline,
-                      title: 'Estudiantes registrados',
-                      value: totalStudents.toString(),
-                      subtitle: 'Estudiantes que han creado cuenta.',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DashboardSummaryCard(
-                      icon: Icons.work_outline,
-                      title: 'Proyectos configurados',
-                      value: totalProjects.toString(),
-                      subtitle: 'Proyectos disponibles para asignar.',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth > 720;
-                  if (isWide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildNewsCard()),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildQuickActionsCard()),
-                      ],
-                    );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildNewsCard(),
-                      const SizedBox(height: 16),
-                      _buildQuickActionsCard(),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    final nombre = user.nombre.isEmpty ? 'Profesor' : user.nombre;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [kDeepBlue, Color(0xFF174773)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hola, $nombre 👋',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Desde aquí puedes gestionar tus proyectos y las solicitudes a estudiantes.',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: const [
-                    _BubbleChip(
-                      icon: Icons.work_outline,
-                      label: 'Proyectos',
-                    ),
-                    _BubbleChip(
-                      icon: Icons.people_outline,
-                      label: 'Estudiantes',
-                    ),
-                    _BubbleChip(
-                      icon: Icons.mail_outline,
-                      label: 'Solicitudes',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 110,
-            height: 100,
-            child: Stack(
-              children: [
-                Positioned(
-                  bottom: 0,
-                  left: 8,
-                  right: 8,
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Icon(
-                      Icons.manage_accounts_outlined,
-                      color: Colors.white,
-                      size: 30,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 0,
-                  child: _floatingCircleIcon(
-                    Icons.campaign_outlined,
-                  ),
-                ),
-                Positioned(
-                  top: 24,
-                  left: 0,
-                  child: _floatingCircleIcon(
-                    Icons.timeline_outlined,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNewsCard() {
-    final noticias = [
-      {
-        'titulo': 'Recordatorio de revisión de avances',
-        'detalle':
-        'Revisa los avances de los grupos antes del viernes para dar feedback.',
-      },
-      {
-        'titulo': 'Nuevo taller de proyectos',
-        'detalle':
-        'Organiza una sesión de dudas de MetroManager para tus estudiantes.',
-      },
-      {
-        'titulo': 'Consejo',
-        'detalle':
-        'Crea proyectos con tareas claras para que los estudiantes sepan exactamente qué hacer.',
-      },
-    ];
-
     return Card(
-      elevation: 0,
-      color: Colors.grey.withOpacity(.03),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Novedades para profesores',
-              style: TextStyle(
-                fontSize: 16,
+            Text(
+              'Hola, Prof. ${user.apellido}',
+              style: const TextStyle(
+                fontSize: 20,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF0E2238),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             const Text(
-              'Información relevante para la gestión de tus cursos.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF667085),
-              ),
+              'Este es tu panel de resumen del curso.',
+              style: TextStyle(color: Color(0xFF667085), fontSize: 13),
             ),
-            const SizedBox(height: 14),
-            ...noticias.map(
-                  (n) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      n['titulo'] as String,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0E2238),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      n['detalle'] as String,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF667085),
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Estudiantes registrados',
+                    value: totalStudents.toString(),
+                    icon: Icons.people_outline,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Proyectos creados',
+                    value: totalProjects.toString(),
+                    icon: Icons.assignment_outlined,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Tareas completadas',
+                    value: '$completedTasks / $totalTasks',
+                    icon: Icons.check_circle_outline,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DashboardSummaryCard(
+                    label: 'Tasa de avance',
+                    value: '${(completionRate * 100).round()}%',
+                    icon: Icons.bar_chart_outlined,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionsCard() {
-    return Card(
-      elevation: 0,
-      color: Colors.grey.withOpacity(.03),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            const SizedBox(height: 24),
             const Text(
               'Acciones rápidas',
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0E2238),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _quickActionButton(
-                  icon: Icons.work_outline,
-                  label: 'Ver proyectos',
-                  onTap: onGoToProjects,
-                ),
-                _quickActionButton(
-                  icon: Icons.people_outline,
-                  label: 'Ver estudiantes',
-                  onTap: onGoToStudents,
-                ),
-                _quickActionButton(
-                  icon: Icons.add_circle_outline,
-                  label: 'Crear proyecto',
-                  onTap: onCreateProject,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Consejos',
-              style: TextStyle(
-                fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF0E2238),
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              '• Pon nombres claros a tus proyectos.\n'
-                  '• Agrega tareas como pasos concretos (ej: “1) Levantar requisitos”, “2) Hacer mockups”).\n'
-                  '• Usa la pestaña Estudiantes para enviar las solicitudes.',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: Color(0xFF667085),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _quickActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: 220,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18),
-        label: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-        ),
-        style: OutlinedButton.styleFrom(
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          side: BorderSide(color: Colors.grey.withOpacity(.5)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// ======================== WIDGETS AUXILIARES ========================
-
-class DashboardSummaryCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-  final String subtitle;
-
-  const DashboardSummaryCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.grey.withOpacity(.06),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: kAccentYellow.withOpacity(.20),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: const Color(0xFF0E2238)),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0E2238),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      color: Color(0xFF667085),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0E2238),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TopTab extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _TopTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: const Color(0xFF0E2238),
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              height: 3,
-              width: 48,
-              decoration: BoxDecoration(
-                color: selected ? kAccentYellow : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FieldBlock extends StatelessWidget {
-  final String title;
-  final TextEditingController? controllerLeft;
-  final TextEditingController? controllerRight;
-  final TextEditingController? controller;
-  final String? hint;
-  final bool readOnly;
-
-  const _FieldBlock({
-    required this.title,
-    this.controllerLeft,
-    this.controllerRight,
-  })  : controller = null,
-        hint = null,
-        readOnly = false;
-
-  const _FieldBlock.single({
-    required this.title,
-    required this.controller,
-    this.hint,
-    this.readOnly = false,
-  })  : controllerLeft = null,
-        controllerRight = null;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = Text(
-      title,
-      style: const TextStyle(
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF0E2238),
-      ),
-    );
-
-    if (controller != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          label,
-          const SizedBox(height: 6),
-          TextField(
-            controller: controller,
-            readOnly: readOnly,
-            decoration: InputDecoration(
-              hintText: hint,
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: kAccentYellow, width: 1.2),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: kAccentYellow, width: 1.6),
-              ),
-              suffixIcon:
-              readOnly ? null : const Icon(Icons.edit, size: 18),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        label,
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controllerLeft,
-                decoration: const InputDecoration(
-                  hintText: 'Nombre',
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kAccentYellow, width: 1.2),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kAccentYellow, width: 1.6),
-                  ),
-                  suffixIcon: Icon(Icons.edit, size: 18),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _QuickActionButton(
+                  icon: Icons.add,
+                  label: 'Crear proyecto',
+                  onTap: onCreateProject,
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: TextField(
-                controller: controllerRight,
-                decoration: const InputDecoration(
-                  hintText: 'Apellido',
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kAccentYellow, width: 1.2),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kAccentYellow, width: 1.6),
-                  ),
-                  suffixIcon: Icon(Icons.edit, size: 18),
+                _QuickActionButton(
+                  icon: Icons.assignment,
+                  label: 'Ver proyectos',
+                  onTap: onGoToProjects,
                 ),
-              ),
+                _QuickActionButton(
+                  icon: Icons.people,
+                  label: 'Gestionar estudiantes',
+                  onTap: onGoToStudents,
+                ),
+                _QuickActionButton(
+                  icon: Icons.chat_bubble,
+                  label: 'Ir al chat',
+                  onTap: onGoToChat,
+                ),
+              ],
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -3379,593 +2715,151 @@ class _FieldRowStatic extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF0E2238),
+            fontSize: 12,
+            color: Color(0xFF667085),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: kAccentYellow, width: 1.2),
-            ),
-          ),
           width: double.infinity,
-          child: Text(value),
-        ),
-      ],
-    );
-  }
-}
-
-class _LogoTitleRow extends StatelessWidget {
-  const _LogoTitleRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: const [
-        _MetroMark(),
-        SizedBox(width: 18),
-        _LogoTitle(),
-      ],
-    );
-  }
-}
-
-class _LogoTitle extends StatelessWidget {
-  const _LogoTitle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text(
-          'METRO',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0E2238),
-          ),
-        ),
-        Text(
-          'MANAGER',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0E2238),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MetroMark extends StatelessWidget {
-  const _MetroMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      height: 42,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _markBar(kAccentYellow, 18),
-          const SizedBox(width: 4),
-          _markBar(kAccentYellow, 26),
-          const SizedBox(width: 4),
-          _markBar(kAccentYellow, 18),
-        ],
-      ),
-    );
-  }
-
-  Widget _markBar(Color c, double h) {
-    return Container(
-      width: 8,
-      height: h,
-      decoration: BoxDecoration(
-        color: c,
-        borderRadius: BorderRadius.circular(4),
-      ),
-    );
-  }
-}
-
-class _RoleCard extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final Color accentColor;
-
-  const _RoleCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    required this.accentColor,
-    super.key,
-  });
-
-  @override
-  State<_RoleCard> createState() => _RoleCardState();
-}
-
-class _RoleCardState extends State<_RoleCard> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: widget.onTap,
-        onHover: (v) => setState(() => _hover = v),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(18),
+          padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _hover
-                  ? widget.accentColor.withOpacity(.7)
-                  : const Color(0xFFE6E8EC),
-              width: _hover ? 2 : 1,
+            color: Colors.grey.withOpacity(.04),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            value.isEmpty ? '-' : value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF0E2238),
             ),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: widget.accentColor.withOpacity(.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  widget.icon,
-                  color: const Color(0xFF0E2238),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0E2238),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.subtitle,
-                      style: const TextStyle(color: Color(0xFF475467)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: widget.onTap,
-                child: const Text('Continuar'),
-              ),
-            ],
-          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-/// Scroll amigable en Web
-class _WebScrollBehavior extends MaterialScrollBehavior {
-  const _WebScrollBehavior();
+/// ======================== CHAT COMPONENTS ========================
+
+class _ChatThread extends StatefulWidget {
+  final AppUser current;
+  final AppUser other;
+
+  const _ChatThread({required this.current, required this.other});
 
   @override
-  Set<PointerDeviceKind> get dragDevices => {
-    PointerDeviceKind.touch,
-    PointerDeviceKind.mouse,
-    PointerDeviceKind.trackpad,
-    PointerDeviceKind.stylus,
-  };
+  State<_ChatThread> createState() => _ChatThreadState();
 }
 
-/// ============ VALIDADORES ============
+class _ChatThreadState extends State<_ChatThread> {
+  final _scrollController = ScrollController();
 
-String? _unimetEmailValidator(String? v) {
-  if (v == null || v.trim().isEmpty) {
-    return 'Ingresa tu correo UNIMET';
+  void _scrollToEnd() {
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(
+        _scrollController.position.maxScrollExtent,
+      );
+    }
   }
-  final email = v.trim();
-  final ok = RegExp(
-    r'^[^@]+@(correo\.unimet\.edu\.ve|unimet\.edu\.ve)$',
-  ).hasMatch(email);
-  if (!ok) {
-    return 'Usa tu correo institucional (@correo.unimet.edu.ve o @unimet.edu.ve)';
+
+  @override
+  void didUpdateWidget(covariant _ChatThread oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
   }
-  return null;
-}
-
-String? _passwordValidator(String? v) {
-  if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
-  if (v.length < 6) return 'Mínimo 6 caracteres';
-  return null;
-}
-
-String? Function(String?) _requiredValidator(String message) {
-  return (v) => (v == null || v.trim().isEmpty) ? message : null;
-}
-
-
-// NUEVO BOTON
-
-class MetroQuickActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? helper;
-  final VoidCallback onTap;
-  final double width;
-
-  const MetroQuickActionButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.helper,
-    this.width = 220,
-  });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: Colors.white,
-            border: Border.all(color: Colors.grey.withOpacity(.18)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: kAccentYellow.withOpacity(.16),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 18, color: const Color(0xFF0E2238)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0E2238),
-                      ),
-                    ),
-                    if (helper != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        helper!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF667085),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: Color(0xFF98A2B3),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final messages = ChatRepository.instance.getThread(
+      widget.current.email,
+      widget.other.email,
     );
-  }
-}
 
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
 
-
-// HERO NUEVO BOTON REUTILIZABLE
-
-
-class MetroHeroHeader extends StatelessWidget {
-  final AppUser user;
-  final String subtitle;
-  final List<Widget> actions;
-  final List<Widget> chips;
-  final List<Widget> stats;
-
-  const MetroHeroHeader({
-    super.key,
-    required this.user,
-    required this.subtitle,
-    this.actions = const [],
-    this.chips = const [],
-    this.stats = const [],
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final nombre = user.fullName.isEmpty ? 'Usuario' : user.fullName;
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [kDeepBlue, Color(0xFF174773)],
+    if (messages.isEmpty) {
+      return const Center(
+        child: Text(
+          'Aún no hay mensajes. Escribe el primero.',
+          style: TextStyle(color: Color(0xFF667085)),
         ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          // LADO IZQUIERDO: info principal
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: kAccentYellow.withOpacity(.22),
-                      child: Text(
-                        user.initials,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hola, $nombre 👋',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: Colors.white.withOpacity(.85),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                if (chips.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: chips,
-                  ),
-                if (stats.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: stats,
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // LADO DERECHO: acciones / iconos
-          if (actions.isNotEmpty) ...[
-            const SizedBox(width: 16),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: actions,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-
-// TARJETA DE SECCION PRE ARMADA
-
-class MetroSectionCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Widget child;
-  final Widget? trailing;
-
-  const MetroSectionCard({
-    super.key,
-    required this.title,
-    required this.child,
-    this.subtitle,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            MetroSectionHeader(
-              title: title,
-              subtitle: subtitle,
-              trailing: trailing,
-            ),
-            const SizedBox(height: 14),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// FONDO
-
-class MetroGradientBackground extends StatelessWidget {
-  final Widget child;
-
-  const MetroGradientBackground({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFF8FAFF),
-            Color(0xFFE6EDF7),
-          ],
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-
-// =======================================================================
-//   HELPERS VISUALES PARA METRO HERO / SECTION CARD
-//   (no modifican nada existente, solo agregan funcionalidad)
-// =======================================================================
-
-/// Extensión de presentación para AppUser (solo cosas visuales)
-extension AppUserPresentationX on AppUser {
-  /// Nombre completo listo para mostrar
-  String get fullName {
-    final n = nombre.trim();
-    final a = apellido.trim();
-    if (n.isEmpty && a.isEmpty) return '';
-    if (n.isEmpty) return a;
-    if (a.isEmpty) return n;
-    return '$n $a';
-  }
-
-  /// Iniciales para avatar, por ejemplo "CC"
-  String get initials {
-    String firstLetter(String s) {
-      final t = s.trim();
-      if (t.isEmpty) return '';
-      return t[0].toUpperCase();
+      );
     }
 
-    final n = firstLetter(nombre);
-    final a = firstLetter(apellido);
-    final result = '$n$a';
-    if (result.trim().isEmpty) return '?';
-    return result;
+    return ListView.builder(
+      controller: _scrollController,
+      itemCount: messages.length,
+      itemBuilder: (_, index) {
+        final m = messages[index];
+        final isMe = m.fromEmail == widget.current.email;
+        return Align(
+          alignment:
+          isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: isMe ? kDeepBlue : Colors.grey.withOpacity(.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              m.text,
+              style: TextStyle(
+                color: isMe ? Colors.white : const Color(0xFF0E2238),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
-/// Header de sección reutilizable, usado por MetroSectionCard
-class MetroSectionHeader extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
+class _ChatInputBar extends StatelessWidget {
+  final TextEditingController controller;
+  final VoidCallback onSend;
 
-  const MetroSectionHeader({
-    super.key,
-    required this.title,
-    this.subtitle,
-    this.trailing,
+  const _ChatInputBar({
+    required this.controller,
+    required this.onSend,
   });
 
   @override
   Widget build(BuildContext context) {
-    final column = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0E2238),
-          ),
+    return Container(
+      padding:
+      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(.06),
+        border: const Border(
+          top: BorderSide(color: Color(0xFFE2E8F0)),
         ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            subtitle!,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF667085),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              minLines: 1,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText: 'Escribe un mensaje...',
+              ),
             ),
           ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: onSend,
+            icon: const Icon(Icons.send),
+            color: kDeepBlue,
+          ),
         ],
-      ],
-    );
-
-    if (trailing == null) return column;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(child: column),
-        const SizedBox(width: 12),
-        trailing!,
-      ],
+      ),
     );
   }
 }
