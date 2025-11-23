@@ -72,9 +72,13 @@ class UserRepository {
 
 /// ------------------------ Proyectos y tareas ------------------------
 
+/// Representa una tarea dentro de un proyecto.
 class ProjectTask {
   final String id;
+
+  /// Título o nombre de la tarea.
   final String title;
+  /// Estado de finalización de la tarea.
   bool completed;
 
   ProjectTask({
@@ -83,6 +87,7 @@ class ProjectTask {
     this.completed = false,
   });
 
+  /// Creación de la copia independiente de las tareas.
   ProjectTask copy() => ProjectTask(
     id: id,
     title: title,
@@ -233,6 +238,7 @@ class ProjectRepository {
     return total;
   }
 
+  /// construcción para saber el total de tareas completadas globalmente.
   int get totalCompletedTasks {
     int total = 0;
     for (final list in _studentProjects.values) {
@@ -245,6 +251,14 @@ class ProjectRepository {
 }
 
 /// ------------------------ Chat privado ------------------------
+
+/// En esta sección se representa un mensaje enviado entre dos usuarios,
+/// Se puede ver el momento en el fue enviado el mensaje
+/// tiene el repositorio para gestión de chats privados.
+///Genera un ID único basado en dos emails ordenados alfabéticamente.
+/// Podemos obtener la lista de mensajes entre dos usuarios.
+
+
 
 class ChatMessage {
   final String fromEmail;
