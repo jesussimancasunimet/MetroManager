@@ -39,6 +39,12 @@ class AppUser {
   });
 }
 
+/// En esta clase tenemos el repositorio de usuario implementado como singleton
+/// se mantiene en la memoria una coleccion de usuarios y permite registrarlos,autenticarlos y filtarlo por rol
+/// se verifica si existe un usuario registrado con el email dado
+/// se intenta iniciar sesion buscando un usuario ya registrado
+
+
 class UserRepository {
   UserRepository._();
 
