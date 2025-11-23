@@ -101,6 +101,9 @@ class ProjectTask {
   );
 }
 
+/// Repositorio singleton para la gestión de proyectos, tareas de proyectos
+/// y el seguimiento del progreso por estudiante.
+
 class Project {
   final String id;
   final String name;
@@ -134,9 +137,12 @@ class StudentProjectData {
 }
 
 class ProjectRepository {
+
+  /// Constructor privado para implementar el patrón Singleton.
   ProjectRepository._();
 
   static final ProjectRepository instance = ProjectRepository._();
+  /// Única instancia del repositorio.
 
   /// NO hay proyectos de demo. Empieza en blanco.
   final List<Project> allProjects = [];
