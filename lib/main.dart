@@ -1,3 +1,6 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,13 +10,15 @@ const kDeepBlue = Color(0xFF0F3A63);
 const kAccentYellow = Color(0xFFF0B429);
 const kLogoOrange = Color(0xFFFF8A3D);
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const MetroManagerApp());
 }
 
 /// ======================== MODELOS Y REPOSITORIOS ========================
+
 /// ------------------------ Usuarios ------------------------
 
 class AppUser {
@@ -23,7 +28,6 @@ class AppUser {
   final String email;
   final String password;
   final String campoExtra; // carrera (estudiante) o profesión (profesor)
-
   String cedula;
   String bio;
 
@@ -39,52 +43,71 @@ class AppUser {
   });
 }
 
-/// En esta clase tenemos el repositorio de usuario implementado como singleton
-/// se mantiene en la memoria una coleccion de usuarios y permite registrarlos,autenticarlos y filtarlo por rol
-/// se verifica si existe un usuario registrado con el email dado
-/// se intenta iniciar sesion buscando un usuario ya registrado
-
+/// ------------------------ Repositorio de usuario (Firebase Auth) ------------------------
 
 class UserRepository {
   UserRepository._();
-
   static final UserRepository instance = UserRepository._();
 
-  final Map<String, AppUser> _users = {};
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  bool exists(String email) => _users.containsKey(email.toLowerCase().trim());
-
-  bool register(AppUser user) {
-    final key = user.email.toLowerCase().trim();
-    if (_users.containsKey(key)) return false;
-    _users[key] = user;
-    return true;
+  Future<bool> exists(String email) async {
+    try {
+      final methods = await _auth.fetchSignInMethodsForEmail(email.trim());
+      return methods.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking user existence: $e');
+      return false;
+    }
   }
 
-  AppUser? login(String email, String password) {
-    final key = email.toLowerCase().trim();
-    final user = _users[key];
-    if (user == null) return null;
-    if (user.password != password) return null;
-    return user;
+  Future<bool> register(AppUser user) async {
+    try {
+      await _auth.createUserWithEmailAndPassword(
+        email: user.email.trim(),
+        password: user.password,
+      );
+      return true;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase registration error: ${e.message}');
+      return false;
+    }
   }
 
-  List<AppUser> get students =>
-      _users.values.where((u) => u.role == 'estudiante').toList();
+  Future<AppUser?> login(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      // En un entorno real se cargaría información extra desde Firestore
+      return AppUser(
+        role: 'estudiante',
+        nombre: 'Usuario',
+        apellido: '',
+        email: email,
+        password: password,
+        campoExtra: '',
+      );
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase login error: ${e.message}');
+      return null;
+    }
+  }
 
-  List<AppUser> get professors =>
-      _users.values.where((u) => u.role == 'profesor').toList();
+  Future<void> logout() async {
+    await _auth.signOut();
+  }
+
+  List<AppUser> get students => [];
+  List<AppUser> get professors => [];
 }
 
 /// ------------------------ Proyectos y tareas ------------------------
 
-/// Representa una tarea dentro de un proyecto.
 class ProjectTask {
   final String id;
-
-  /// Título o nombre de la tarea.
   final String title;
-  /// Estado de finalización de la tarea.
   bool completed;
 
   ProjectTask({
@@ -93,16 +116,8 @@ class ProjectTask {
     this.completed = false,
   });
 
-  /// Creación de la copia independiente de las tareas.
-  ProjectTask copy() => ProjectTask(
-    id: id,
-    title: title,
-    completed: completed,
-  );
+  ProjectTask copy() => ProjectTask(id: id, title: title, completed: completed);
 }
-
-/// Repositorio singleton para la gestión de proyectos, tareas de proyectos
-/// y el seguimiento del progreso por estudiante.
 
 class Project {
   final String id;
@@ -137,25 +152,15 @@ class StudentProjectData {
 }
 
 class ProjectRepository {
-
-  /// Constructor privado para implementar el patrón Singleton.
   ProjectRepository._();
-
   static final ProjectRepository instance = ProjectRepository._();
-  /// Única instancia del repositorio.
 
-  /// NO hay proyectos de demo. Empieza en blanco.
   final List<Project> allProjects = [];
-
-  /// Proyectos suscritos por estudiante (email -> lista)
   final Map<String, List<StudentProjectData>> _studentProjects = {};
-
-  /// Solicitudes enviadas por profesores a estudiantes (email -> proyectos)
   final Map<String, List<Project>> _studentRequests = {};
 
   List<StudentProjectData> getStudentProjects(String email) {
-    return _studentProjects[email.toLowerCase().trim()] ??
-        <StudentProjectData>[];
+    return _studentProjects[email.toLowerCase().trim()] ?? <StudentProjectData>[];
   }
 
   List<Project> getStudentRequests(String email) {
@@ -168,53 +173,29 @@ class ProjectRepository {
     final subscribedIds = current.map((sp) => sp.project.id).toSet();
     final requested = _studentRequests[key] ?? <Project>[];
     final requestedIds = requested.map((p) => p.id).toSet();
-
     return allProjects
-        .where(
-          (p) =>
-      !subscribedIds.contains(p.id) && !requestedIds.contains(p.id),
-    )
+        .where((p) => !subscribedIds.contains(p.id) && !requestedIds.contains(p.id))
         .toList();
   }
 
- /// Suscribe a un estudiante al proyecto especificado.
- ///
- /// 1. Normaliza el email para usarlo como llave.
- /// 2. erifica si el estudiante ya está suscrito a este proyecto para evitar duplicados.
- /// 3. Si es una suscripción nueva, **crea una instancia de studentprojectdata.
- /// 4. IMPORTANTE: Las tareas del proyecto se copian para crear una lista de tareas
- ///    exclusiva del estudiante. Esto permite que el progreso (estado 'completed') sea
- ///    gestionado individualmente sin modificar las tareas maestras del project original.
- 
   void subscribeStudentToProject(String email, Project project) {
     final key = email.toLowerCase().trim();
-    final list =
-    _studentProjects.putIfAbsent(key, () => <StudentProjectData>[]);
+    final list = _studentProjects.putIfAbsent(key, () => <StudentProjectData>[]);
     final already = list.any((sp) => sp.project.id == project.id);
     if (already) return;
-
-    list.add(
-      StudentProjectData(
-        project: project,
-        tasks: project.tasks.map((t) => t.copy()).toList(),
-      ),
-    );
+    list.add(StudentProjectData(
+      project: project,
+      tasks: project.tasks.map((t) => t.copy()).toList(),
+    ));
   }
 
-  void updateTaskStatus(
-      String email,
-      String projectId,
-      String taskId,
-      bool completed,
-      ) {
-    final key = email.toLowerCase().trim();
-    final list = _studentProjects[key];
+  void updateTaskStatus(String email, String pid, String tid, bool completed) {
+    final list = _studentProjects[email.toLowerCase().trim()];
     if (list == null) return;
-
     for (final sp in list) {
-      if (sp.project.id == projectId) {
+      if (sp.project.id == pid) {
         for (final t in sp.tasks) {
-          if (t.id == taskId) {
+          if (t.id == tid) {
             t.completed = completed;
             return;
           }
@@ -239,16 +220,11 @@ class ProjectRepository {
 
   void rejectRequest(String email, Project project) {
     final key = email.toLowerCase().trim();
-    final list = _studentRequests[key];
-    list?.removeWhere((p) => p.id == project.id);
+    _studentRequests[key]?.removeWhere((p) => p.id == project.id);
   }
 
-  /// Crear un proyecto nuevo
-  void addProject(Project project) {
-    allProjects.add(project);
-  }
+  void addProject(Project project) => allProjects.add(project);
 
-  /// Para el dashboard del profesor: estadísticas globales
   int get totalAssignedTasks {
     int total = 0;
     for (final list in _studentProjects.values) {
@@ -259,7 +235,6 @@ class ProjectRepository {
     return total;
   }
 
-  /// construcción para saber el total de tareas completadas globalmente.
   int get totalCompletedTasks {
     int total = 0;
     for (final list in _studentProjects.values) {
@@ -272,14 +247,6 @@ class ProjectRepository {
 }
 
 /// ------------------------ Chat privado ------------------------
-
-/// En esta sección se representa un mensaje enviado entre dos usuarios,
-/// Se puede ver el momento en el fue enviado el mensaje
-/// tiene el repositorio para gestión de chats privados.
-///Genera un ID único basado en dos emails ordenados alfabéticamente.
-/// Podemos obtener la lista de mensajes entre dos usuarios.
-
-
 
 class ChatMessage {
   final String fromEmail;
@@ -297,20 +264,17 @@ class ChatMessage {
 
 class ChatRepository {
   ChatRepository._();
-
   static final ChatRepository instance = ChatRepository._();
 
   final Map<String, List<ChatMessage>> _threads = {};
 
   String _threadId(String a, String b) {
-    final emails = [a.toLowerCase().trim(), b.toLowerCase().trim()]..sort();
-    return '${emails[0]}|${emails[1]}';
+    final e = [a.toLowerCase().trim(), b.toLowerCase().trim()]..sort();
+    return '${e[0]}|${e[1]}';
   }
 
-  List<ChatMessage> getThread(String a, String b) {
-    final id = _threadId(a, b);
-    return _threads[id] ?? <ChatMessage>[];
-  }
+  List<ChatMessage> getThread(String a, String b) =>
+      _threads[_threadId(a, b)] ?? <ChatMessage>[];
 
   void sendMessage({
     required String from,
@@ -320,14 +284,12 @@ class ChatRepository {
     if (text.trim().isEmpty) return;
     final id = _threadId(from, to);
     final list = _threads.putIfAbsent(id, () => <ChatMessage>[]);
-    list.add(
-      ChatMessage(
-        fromEmail: from,
-        toEmail: to,
-        text: text.trim(),
-        timestamp: DateTime.now(),
-      ),
-    );
+    list.add(ChatMessage(
+      fromEmail: from,
+      toEmail: to,
+      text: text,
+      timestamp: DateTime.now(),
+    ));
   }
 }
 
