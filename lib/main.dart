@@ -2609,6 +2609,12 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
 
 /// ======================== COMPONENTES COMPARTIDOS ========================
 
+
+/// Widget que muestra la sección principal del panel del profesor,
+/// incluyendo resumen del curso y accesos rápidos.
+
+
+
 class ProfessorHomeSection extends StatelessWidget {
   final AppUser user;
   final int totalStudents;
@@ -2777,6 +2783,9 @@ class _FieldRowStatic extends StatelessWidget {
 }
 
 /// ======================== CHAT COMPONENTS ========================
+
+/// Widget que representa un hilo de chat entre dos usuarios.
+/// Muestra todos los mensajes previos y permite hacer scroll automático.
 
 class _ChatThread extends StatefulWidget {
   final AppUser current;
