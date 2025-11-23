@@ -177,6 +177,15 @@ class ProjectRepository {
         .toList();
   }
 
+ /// Suscribe a un estudiante al proyecto especificado.
+ ///
+ /// 1. Normaliza el email para usarlo como llave.
+ /// 2. erifica si el estudiante ya está suscrito a este proyecto para evitar duplicados.
+ /// 3. Si es una suscripción nueva, **crea una instancia de studentprojectdata.
+ /// 4. IMPORTANTE: Las tareas del proyecto se copian para crear una lista de tareas
+ ///    exclusiva del estudiante. Esto permite que el progreso (estado 'completed') sea
+ ///    gestionado individualmente sin modificar las tareas maestras del project original.
+ 
   void subscribeStudentToProject(String email, Project project) {
     final key = email.toLowerCase().trim();
     final list =
