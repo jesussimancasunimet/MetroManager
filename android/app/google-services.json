@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "4395326871",
-    "project_id": "metromanager-33247",
-    "storage_bucket": "metromanager-33247.firebasestorage.app"
+    "project_number": "186651823366",
+    "project_id": "metromanager-8a7cb",
+    "storage_bucket": "metromanager-8a7cb.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:4395326871:android:2ed10da3e5aec4d1f7b8d2",
+        "mobilesdk_app_id": "1:186651823366:android:b14967a1d131ad550fe287",
         "android_client_info": {
           "package_name": "com.metromanager.metro_manager"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAHJicMqZfcxgqBWr7vLbohlEafmEx3zFE"
+          "current_key": "AIzaSyDLCYzj2X0Agjfepe5jn9A8BvV7qUNNBlg"
         }
       ],
       "services": {

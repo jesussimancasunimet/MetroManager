@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
+import 'firebase_options.dart'; // Ejecuta: flutterfire configure
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,22 +12,22 @@ const kLogoOrange = Color(0xFFFF8A3D);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const MetroManagerApp());
 }
 
 /// ======================== MODELOS Y REPOSITORIOS ========================
 
-/// ------------------------ Usuarios ------------------------
-
 class AppUser {
-  final String role; // 'estudiante' o 'profesor'
+  final String role;
   String nombre;
   String apellido;
   final String email;
   final String password;
-  final String campoExtra; // carrera (estudiante) o profesión (profesor)
+  final String campoExtra;
   String cedula;
   String bio;
 
@@ -43,8 +43,6 @@ class AppUser {
   });
 }
 
-/// ------------------------ Repositorio de usuario (Firebase Auth) ------------------------
-
 class UserRepository {
   UserRepository._();
   static final UserRepository instance = UserRepository._();
@@ -52,14 +50,22 @@ class UserRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<bool> exists(String email) async {
-    try {
-      final methods = await _auth.fetchSignInMethodsForEmail(email.trim());
-      return methods.isNotEmpty;
-    } catch (e) {
-      debugPrint('Error checking user existence: $e');
-      return false;
+  try {
+    await _auth.createUserWithEmailAndPassword(
+      email: email.trim(),
+      password: 'dummy-password-check',
+    );
+    // Si llega aquí, el usuario NO existe (se creó)
+    return false;
+  } on FirebaseAuthException catch (e) {
+    if (e.code == 'email-already-in-use') {
+      // El email ya existe
+      return true;
     }
+    debugPrint('Error checking user existence: $e');
+    return false;
   }
+}
 
   Future<bool> register(AppUser user) async {
     try {
@@ -76,11 +82,11 @@ class UserRepository {
 
   Future<AppUser?> login(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(
+      final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
-      // En un entorno real se cargaría información extra desde Firestore
+      
       return AppUser(
         role: 'estudiante',
         nombre: 'Usuario',
@@ -102,8 +108,6 @@ class UserRepository {
   List<AppUser> get students => [];
   List<AppUser> get professors => [];
 }
-
-/// ------------------------ Proyectos y tareas ------------------------
 
 class ProjectTask {
   final String id;
@@ -246,8 +250,6 @@ class ProjectRepository {
   }
 }
 
-/// ------------------------ Chat privado ------------------------
-
 class ChatMessage {
   final String fromEmail;
   final String toEmail;
@@ -374,8 +376,6 @@ class MetroManagerApp extends StatelessWidget {
   }
 }
 
-/// ======================== LOGO METROMANAGER ========================
-
 class MetroManagerLogo extends StatelessWidget {
   final Color textColor;
   final double size;
@@ -436,8 +436,6 @@ class MetroManagerLogo extends StatelessWidget {
   }
 }
 
-/// ======================== PANTALLA INICIAL LIMPIA ========================
-
 class StartPage extends StatelessWidget {
   const StartPage({super.key});
 
@@ -460,7 +458,6 @@ class StartPage extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      // Lado izquierdo: copy de bienvenida
                       Expanded(
                         flex: 3,
                         child: Column(
@@ -537,7 +534,6 @@ class StartPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 24),
-                      // Lado derecho: diseño limpio con iconos, sin datos falsos
                       Expanded(
                         flex: 2,
                         child: Container(
@@ -666,8 +662,6 @@ class _MiniIconInfo extends StatelessWidget {
   }
 }
 
-/// ======================== LOGIN & REGISTRO ========================
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -690,10 +684,10 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final user = UserRepository.instance.login(
+    final AppUser? user = await UserRepository.instance.login(
       _emailCtrl.text,
       _passCtrl.text,
     );
@@ -873,11 +867,12 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     final repo = UserRepository.instance;
-    if (repo.exists(_emailCtrl.text)) {
+    final bool emailExists = await repo.exists(_emailCtrl.text);
+    if (emailExists) {
       setState(() {
         _error = 'Ya existe una cuenta con ese correo.';
       });
@@ -893,7 +888,14 @@ class _RegisterPageState extends State<RegisterPage> {
       campoExtra: _campoExtraCtrl.text.trim(),
     );
 
-    repo.register(user);
+    final bool success = await repo.register(user);
+    if (!success) {
+      setState(() {
+        _error = 'Error en el registro. Intenta de nuevo.';
+      });
+      return;
+    }
+
     setState(() => _error = null);
 
     if (user.role == 'estudiante') {
@@ -1065,8 +1067,6 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
-/// ======================== PERFIL ESTUDIANTE ========================
-
 class StudentProfilePage extends StatefulWidget {
   final AppUser user;
 
@@ -1077,7 +1077,7 @@ class StudentProfilePage extends StatefulWidget {
 }
 
 class _StudentProfilePageState extends State<StudentProfilePage> {
-  int _tabIndex = 0; // 0:Inicio, 1:Proyectos, 2:Solicitudes, 3:Chat, 4:Perfil
+  int _tabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -1089,7 +1089,8 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         title: const MetroManagerLogo(),
         actions: [
           TextButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              await UserRepository.instance.logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const StartPage()),
                     (_) => false,
@@ -1187,7 +1188,7 @@ class StudentHomeSection extends StatelessWidget {
     final repo = ProjectRepository.instance;
     final proyectos = repo.getStudentProjects(user.email);
     final totalTareas =
-    proyectos.fold<int>(0, (sum, sp) => sum + sp.tasks.length);
+        proyectos.fold<int>(0, (sum, sp) => sum + sp.tasks.length);
     final completadas = proyectos.fold<int>(
         0, (sum, sp) => sum + sp.tasks.where((t) => t.completed).length);
 
@@ -1394,7 +1395,6 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
 
     return Row(
       children: [
-        // Mis proyectos (aquí está la barra por proyecto)
         Expanded(
           flex: 3,
           child: Card(
@@ -1520,7 +1520,6 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
           ),
         ),
         const SizedBox(width: 16),
-        // Proyectos disponibles (solo info, sin demo pre-asignado)
         Expanded(
           flex: 2,
           child: Card(
@@ -1930,8 +1929,6 @@ class _StudentProfileFormState extends State<StudentProfileForm> {
   }
 }
 
-/// ======================== PERFIL PROFESOR ========================
-
 class ProfessorProfilePage extends StatefulWidget {
   final AppUser user;
 
@@ -1942,7 +1939,7 @@ class ProfessorProfilePage extends StatefulWidget {
 }
 
 class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
-  int _tabIndex = 0; // 0:Dashboard, 1:Proyectos, 2:Estudiantes, 3:Chat, 4:Perfil
+  int _tabIndex = 0;
   AppUser? _selectedStudentForChat;
   final TextEditingController _profChatCtrl = TextEditingController();
 
@@ -1964,7 +1961,8 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
         title: const MetroManagerLogo(),
         actions: [
           TextButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              await UserRepository.instance.logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const StartPage()),
                     (_) => false,
@@ -2012,7 +2010,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                 label: Text('Estudiantes'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.chat_bubble_outline),
+                icon: Icon(Icons.chat_bubble_outlined),
                 selectedIcon: Icon(Icons.chat_bubble),
                 label: Text('Chat'),
               ),
@@ -2414,7 +2412,6 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
     );
   }
 
-  /// Diálogo para crear un proyecto nuevo sin romper nada
   Future<void> _openCreateProjectDialog() async {
     final nameCtrl = TextEditingController();
     final courseCtrl = TextEditingController();
@@ -2568,14 +2565,6 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
     }
   }
 }
-
-/// ======================== COMPONENTES COMPARTIDOS ========================
-
-
-/// Widget que muestra la sección principal del panel del profesor,
-/// incluyendo resumen del curso y accesos rápidos.
-
-
 
 class ProfessorHomeSection extends StatelessWidget {
   final AppUser user;
@@ -2744,11 +2733,6 @@ class _FieldRowStatic extends StatelessWidget {
   }
 }
 
-/// ======================== CHAT COMPONENTS ========================
-
-/// Widget que representa un hilo de chat entre dos usuarios.
-/// Muestra todos los mensajes previos y permite hacer scroll automático.
-
 class _ChatThread extends StatefulWidget {
   final AppUser current;
   final AppUser other;
@@ -2869,4 +2853,3 @@ class _ChatInputBar extends StatelessWidget {
     );
   }
 }
- // listoooo!
