@@ -12,9 +12,7 @@ const kLogoOrange = Color(0xFFFF8A3D);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const MetroManagerApp());
 }
@@ -50,22 +48,11 @@ class UserRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<bool> exists(String email) async {
-  try {
-    await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: 'dummy-password-check',
-    );
-    // Si llega aquí, el usuario NO existe (se creó)
-    return false;
-  } on FirebaseAuthException catch (e) {
-    if (e.code == 'email-already-in-use') {
-      // El email ya existe
-      return true;
-    }
-    debugPrint('Error checking user existence: $e');
+    // Some firebase_auth versions do not expose fetchSignInMethodsForEmail.
+    // To avoid depending on a method that may not exist in the SDK, return false here
+    // and let register(...) handle duplicate-email errors returned by Firebase.
     return false;
   }
-}
 
   Future<bool> register(AppUser user) async {
     try {
@@ -73,32 +60,65 @@ class UserRepository {
         email: user.email.trim(),
         password: user.password,
       );
+      await _auth.currentUser?.updateDisplayName(
+        '${user.nombre} ${user.apellido}',
+      );
       return true;
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase registration error: ${e.message}');
+      debugPrint('Firebase registration error: ${e.code} - ${e.message}');
       return false;
     }
   }
 
   Future<AppUser?> login(String email, String password) async {
+    if (!_isValidEmail(email)) {
+      debugPrint('Email format invalid');
+      return null;
+    }
+
     try {
-      final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final UserCredential credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
-      
+
+      if (credential.user == null) {
+        debugPrint('Login successful but user is null');
+        return null;
+      }
+
       return AppUser(
         role: 'estudiante',
-        nombre: 'Usuario',
-        apellido: '',
-        email: email,
+        nombre: credential.user!.displayName?.split(' ').first ?? 'Usuario',
+        apellido:
+            credential.user!.displayName?.split(' ').skip(1).join(' ') ?? '',
+        email: credential.user!.email ?? email.trim(),
         password: password,
         campoExtra: '',
       );
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase login error: ${e.message}');
+      if (e.code == 'user-not-found') {
+        debugPrint('User not found');
+      } else if (e.code == 'wrong-password') {
+        debugPrint('Wrong password');
+      } else if (e.code == 'invalid-credential') {
+        debugPrint(
+          'Invalid credentials - user may not exist or password is wrong',
+        );
+      } else if (e.code == 'invalid-email') {
+        debugPrint('Invalid email format');
+      } else {
+        debugPrint('Firebase login error: ${e.code} - ${e.message}');
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Unexpected login error: $e');
       return null;
     }
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
   Future<void> logout() async {
@@ -114,11 +134,7 @@ class ProjectTask {
   final String title;
   bool completed;
 
-  ProjectTask({
-    required this.id,
-    required this.title,
-    this.completed = false,
-  });
+  ProjectTask({required this.id, required this.title, this.completed = false});
 
   ProjectTask copy() => ProjectTask(id: id, title: title, completed: completed);
 }
@@ -143,10 +159,7 @@ class StudentProjectData {
   final Project project;
   final List<ProjectTask> tasks;
 
-  StudentProjectData({
-    required this.project,
-    required this.tasks,
-  });
+  StudentProjectData({required this.project, required this.tasks});
 
   double get progress {
     if (tasks.isEmpty) return 0;
@@ -164,7 +177,8 @@ class ProjectRepository {
   final Map<String, List<Project>> _studentRequests = {};
 
   List<StudentProjectData> getStudentProjects(String email) {
-    return _studentProjects[email.toLowerCase().trim()] ?? <StudentProjectData>[];
+    return _studentProjects[email.toLowerCase().trim()] ??
+        <StudentProjectData>[];
   }
 
   List<Project> getStudentRequests(String email) {
@@ -178,19 +192,26 @@ class ProjectRepository {
     final requested = _studentRequests[key] ?? <Project>[];
     final requestedIds = requested.map((p) => p.id).toSet();
     return allProjects
-        .where((p) => !subscribedIds.contains(p.id) && !requestedIds.contains(p.id))
+        .where(
+          (p) => !subscribedIds.contains(p.id) && !requestedIds.contains(p.id),
+        )
         .toList();
   }
 
   void subscribeStudentToProject(String email, Project project) {
     final key = email.toLowerCase().trim();
-    final list = _studentProjects.putIfAbsent(key, () => <StudentProjectData>[]);
+    final list = _studentProjects.putIfAbsent(
+      key,
+      () => <StudentProjectData>[],
+    );
     final already = list.any((sp) => sp.project.id == project.id);
     if (already) return;
-    list.add(StudentProjectData(
-      project: project,
-      tasks: project.tasks.map((t) => t.copy()).toList(),
-    ));
+    list.add(
+      StudentProjectData(
+        project: project,
+        tasks: project.tasks.map((t) => t.copy()).toList(),
+      ),
+    );
   }
 
   void updateTaskStatus(String email, String pid, String tid, bool completed) {
@@ -286,12 +307,14 @@ class ChatRepository {
     if (text.trim().isEmpty) return;
     final id = _threadId(from, to);
     final list = _threads.putIfAbsent(id, () => <ChatMessage>[]);
-    list.add(ChatMessage(
-      fromEmail: from,
-      toEmail: to,
-      text: text,
-      timestamp: DateTime.now(),
-    ));
+    list.add(
+      ChatMessage(
+        fromEmail: from,
+        toEmail: to,
+        text: text,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 }
 
@@ -314,9 +337,7 @@ class MetroManagerApp extends StatelessWidget {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        labelStyle: TextStyle(
-          color: const Color(0xFF0E2238).withOpacity(.8),
-        ),
+        labelStyle: TextStyle(color: const Color(0xFF0E2238).withOpacity(.8)),
         hintStyle: const TextStyle(color: Color(0xFF667085)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -334,8 +355,10 @@ class MetroManagerApp extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.red.withOpacity(.9)),
         ),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -475,7 +498,7 @@ class StartPage extends StatelessWidget {
                             const SizedBox(height: 12),
                             const Text(
                               'Organiza proyectos, tareas y la comunicación entre profesores y estudiantes '
-                                  'en un solo lugar. Empieza desde cero y ve construyendo tu espacio académico.',
+                              'en un solo lugar. Empieza desde cero y ve construyendo tu espacio académico.',
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 14,
@@ -582,7 +605,7 @@ class StartPage extends StatelessWidget {
                               const SizedBox(height: 24),
                               Row(
                                 mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
+                                    MainAxisAlignment.spaceEvenly,
                                 children: const [
                                   _MiniIconInfo(
                                     icon: Icons.assignment_outlined,
@@ -703,15 +726,11 @@ class _LoginPageState extends State<LoginPage> {
 
     if (user.role == 'estudiante') {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => StudentProfilePage(user: user),
-        ),
+        MaterialPageRoute(builder: (_) => StudentProfilePage(user: user)),
       );
     } else {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ProfessorProfilePage(user: user),
-        ),
+        MaterialPageRoute(builder: (_) => ProfessorProfilePage(user: user)),
       );
     }
   }
@@ -726,8 +745,9 @@ class _LoginPageState extends State<LoginPage> {
           child: Card(
             color: Colors.white,
             elevation: 4,
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -735,10 +755,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const MetroManagerLogo(
-                      textColor: kDeepBlue,
-                      size: 20,
-                    ),
+                    const MetroManagerLogo(textColor: kDeepBlue, size: 20),
                     const SizedBox(height: 16),
                     const Text(
                       'Iniciar sesión',
@@ -781,8 +798,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
                       validator: (v) {
@@ -900,15 +916,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (user.role == 'estudiante') {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => StudentProfilePage(user: user),
-        ),
+        MaterialPageRoute(builder: (_) => StudentProfilePage(user: user)),
       );
     } else {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ProfessorProfilePage(user: user),
-        ),
+        MaterialPageRoute(builder: (_) => ProfessorProfilePage(user: user)),
       );
     }
   }
@@ -922,8 +934,9 @@ class _RegisterPageState extends State<RegisterPage> {
           constraints: const BoxConstraints(maxWidth: 520),
           child: Card(
             color: Colors.white,
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -932,10 +945,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   shrinkWrap: true,
                   children: [
                     const Center(
-                      child: MetroManagerLogo(
-                        textColor: kDeepBlue,
-                        size: 20,
-                      ),
+                      child: MetroManagerLogo(textColor: kDeepBlue, size: 20),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -979,14 +989,14 @@ class _RegisterPageState extends State<RegisterPage> {
                       controller: _nombreCtrl,
                       decoration: const InputDecoration(labelText: 'Nombre'),
                       validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _apellidoCtrl,
                       decoration: const InputDecoration(labelText: 'Apellido'),
                       validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -997,7 +1007,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         hintText: 'nombre@unimet.edu.ve',
                       ),
                       validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -1011,22 +1021,23 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
-                      validator: (v) =>
-                      v == null || v.length < 4 ? 'Mínimo 4 caracteres' : null,
+                      validator: (v) => v == null || v.length < 4
+                          ? 'Mínimo 4 caracteres'
+                          : null,
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _campoExtraCtrl,
                       decoration: InputDecoration(
-                        labelText:
-                        _role == 'estudiante' ? 'Carrera' : 'Profesión',
+                        labelText: _role == 'estudiante'
+                            ? 'Carrera'
+                            : 'Profesión',
                       ),
                       validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
                     ),
                     const SizedBox(height: 10),
                     if (_error != null)
@@ -1049,13 +1060,11 @@ class _RegisterPageState extends State<RegisterPage> {
                     TextButton(
                       onPressed: () {
                         Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => const LoginPage(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const LoginPage()),
                         );
                       },
                       child: const Text('Ya tengo cuenta'),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -1093,15 +1102,12 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
               await UserRepository.instance.logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const StartPage()),
-                    (_) => false,
+                (_) => false,
               );
             },
             icon: const Icon(Icons.logout, color: Colors.white),
-            label: const Text(
-              'Salir',
-              style: TextStyle(color: Colors.white),
-            ),
-          )
+            label: const Text('Salir', style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
       body: Row(
@@ -1111,16 +1117,22 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             selectedIndex: _tabIndex,
             onDestinationSelected: (i) => setState(() => _tabIndex = i),
             labelType: NavigationRailLabelType.all,
-            selectedIconTheme:
-            const IconThemeData(color: Colors.white, size: 26),
+            selectedIconTheme: const IconThemeData(
+              color: Colors.white,
+              size: 26,
+            ),
             selectedLabelTextStyle: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
-            unselectedIconTheme:
-            const IconThemeData(color: Colors.white70, size: 22),
-            unselectedLabelTextStyle:
-            const TextStyle(color: Colors.white70, fontSize: 12),
+            unselectedIconTheme: const IconThemeData(
+              color: Colors.white70,
+              size: 22,
+            ),
+            unselectedLabelTextStyle: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
             destinations: const [
               NavigationRailDestination(
                 icon: Icon(Icons.home_outlined),
@@ -1187,10 +1199,14 @@ class StudentHomeSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = ProjectRepository.instance;
     final proyectos = repo.getStudentProjects(user.email);
-    final totalTareas =
-        proyectos.fold<int>(0, (sum, sp) => sum + sp.tasks.length);
+    final totalTareas = proyectos.fold<int>(
+      0,
+      (sum, sp) => sum + sp.tasks.length,
+    );
     final completadas = proyectos.fold<int>(
-        0, (sum, sp) => sum + sp.tasks.where((t) => t.completed).length);
+      0,
+      (sum, sp) => sum + sp.tasks.where((t) => t.completed).length,
+    );
 
     final progreso = totalTareas == 0 ? 0.0 : completadas / totalTareas;
 
@@ -1260,8 +1276,8 @@ class StudentHomeSection extends StatelessWidget {
                   icon: Icons.assignment,
                   label: 'Ver mis proyectos',
                   onTap: () {
-                    final state = context.findAncestorStateOfType<
-                        _StudentProfilePageState>();
+                    final state = context
+                        .findAncestorStateOfType<_StudentProfilePageState>();
                     state?.setState(() => state._tabIndex = 1);
                   },
                 ),
@@ -1269,8 +1285,8 @@ class StudentHomeSection extends StatelessWidget {
                   icon: Icons.mail,
                   label: 'Ver solicitudes',
                   onTap: () {
-                    final state = context.findAncestorStateOfType<
-                        _StudentProfilePageState>();
+                    final state = context
+                        .findAncestorStateOfType<_StudentProfilePageState>();
                     state?.setState(() => state._tabIndex = 2);
                   },
                 ),
@@ -1278,8 +1294,8 @@ class StudentHomeSection extends StatelessWidget {
                   icon: Icons.chat_bubble,
                   label: 'Abrir chat',
                   onTap: () {
-                    final state = context.findAncestorStateOfType<
-                        _StudentProfilePageState>();
+                    final state = context
+                        .findAncestorStateOfType<_StudentProfilePageState>();
                     state?.setState(() => state._tabIndex = 3);
                   },
                 ),
@@ -1416,15 +1432,14 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                   if (proyectos.isEmpty)
                     const Text(
                       'Aún no estás suscrito a ningún proyecto.\n'
-                          'Acepta una solicitud o espera a que un profesor te asigne una.',
+                      'Acepta una solicitud o espera a que un profesor te asigne una.',
                       style: TextStyle(color: Color(0xFF667085)),
                     ),
                   if (proyectos.isNotEmpty)
                     Expanded(
                       child: ListView.separated(
                         itemCount: proyectos.length,
-                        separatorBuilder: (_, __) =>
-                        const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (_, index) {
                           final sp = proyectos[index];
                           final progress = sp.progress.clamp(0.0, 1.0);
@@ -1459,12 +1474,13 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                                   LinearProgressIndicator(
                                     value: progress,
                                     minHeight: 8,
-                                    backgroundColor:
-                                    Colors.grey.withOpacity(.2),
-                                    valueColor:
-                                    const AlwaysStoppedAnimation<Color>(
-                                      kAccentYellow,
+                                    backgroundColor: Colors.grey.withOpacity(
+                                      .2,
                                     ),
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                          kAccentYellow,
+                                        ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -1483,13 +1499,12 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                                   ),
                                   const SizedBox(height: 4),
                                   ...sp.tasks.map(
-                                        (t) => CheckboxListTile(
+                                    (t) => CheckboxListTile(
                                       contentPadding: EdgeInsets.zero,
                                       dense: true,
                                       title: Text(
                                         t.title,
-                                        style:
-                                        const TextStyle(fontSize: 13),
+                                        style: const TextStyle(fontSize: 13),
                                       ),
                                       value: t.completed,
                                       onChanged: (v) {
@@ -1498,11 +1513,11 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                                           t.completed = checked;
                                           ProjectRepository.instance
                                               .updateTaskStatus(
-                                            widget.user.email,
-                                            sp.project.id,
-                                            t.id,
-                                            checked,
-                                          );
+                                                widget.user.email,
+                                                sp.project.id,
+                                                t.id,
+                                                checked,
+                                              );
                                         });
                                       },
                                     ),
@@ -1540,92 +1555,90 @@ class _StudentProjectsSectionState extends State<StudentProjectsSection> {
                   const SizedBox(height: 8),
                   const Text(
                     'Estos son los proyectos que los profesores han configurado. '
-                        'Puedes verlos y esperar a que te asignen o te envíen una solicitud.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF667085),
-                    ),
+                    'Puedes verlos y esperar a que te asignen o te envíen una solicitud.',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF667085)),
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: Builder(builder: (context) {
-                      final projects = ProjectRepository.instance.allProjects;
-                      if (projects.isEmpty) {
-                        return const Center(
-                          child: Text(
-                            'Todavía no hay proyectos configurados.',
-                            style: TextStyle(color: Color(0xFF667085)),
-                          ),
-                        );
-                      }
-                      return ListView.separated(
-                        itemCount: projects.length,
-                        separatorBuilder: (_, __) =>
-                        const SizedBox(height: 10),
-                        itemBuilder: (_, index) {
-                          final p = projects[index];
-                          return Card(
-                            elevation: 0,
-                            color: Colors.grey.withOpacity(.04),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    p.name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    p.course,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF667085),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    p.description,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF667085),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Tareas:',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  if (p.tasks.isEmpty)
-                                    const Text(
-                                      '• (Sin tareas definidas aún)',
-                                      style: TextStyle(fontSize: 12),
-                                    )
-                                  else
-                                    ...p.tasks.map(
-                                          (t) => Text(
-                                        '• ${t.title}',
-                                        style:
-                                        const TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                    child: Builder(
+                      builder: (context) {
+                        final projects = ProjectRepository.instance.allProjects;
+                        if (projects.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'Todavía no hay proyectos configurados.',
+                              style: TextStyle(color: Color(0xFF667085)),
                             ),
                           );
-                        },
-                      );
-                    }),
+                        }
+                        return ListView.separated(
+                          itemCount: projects.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (_, index) {
+                            final p = projects[index];
+                            return Card(
+                              elevation: 0,
+                              color: Colors.grey.withOpacity(.04),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p.name,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      p.course,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF667085),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      p.description,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF667085),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Tareas:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (p.tasks.isEmpty)
+                                      const Text(
+                                        '• (Sin tareas definidas aún)',
+                                        style: TextStyle(fontSize: 12),
+                                      )
+                                    else
+                                      ...p.tasks.map(
+                                        (t) => Text(
+                                          '• ${t.title}',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -1670,10 +1683,7 @@ class _StudentRequestsPageState extends State<StudentRequestsPage> {
             const SizedBox(height: 8),
             const Text(
               'Acepta o rechaza solicitudes enviadas por tus profesores.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF667085),
-              ),
+              style: TextStyle(fontSize: 13, color: Color(0xFF667085)),
             ),
             const SizedBox(height: 16),
             if (requests.isEmpty)
@@ -1710,10 +1720,7 @@ class _StudentRequestsPageState extends State<StudentRequestsPage> {
                                   );
                                 });
                               },
-                              icon: const Icon(
-                                Icons.close,
-                                color: Colors.red,
-                              ),
+                              icon: const Icon(Icons.close, color: Colors.red),
                             ),
                             IconButton(
                               tooltip: 'Aceptar',
@@ -1772,8 +1779,7 @@ class _StudentChatPageState extends State<StudentChatPage> {
       child: Column(
         children: [
           Padding(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1788,24 +1794,19 @@ class _StudentChatPageState extends State<StudentChatPage> {
                 const SizedBox(height: 6),
                 const Text(
                   'Selecciona un profesor y conversa de forma privada.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF667085),
-                  ),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF667085)),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<AppUser>(
                   value: _selectedProfessor,
-                  decoration: const InputDecoration(
-                    labelText: 'Profesor',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Profesor'),
                   items: professors
                       .map(
                         (p) => DropdownMenuItem(
-                      value: p,
-                      child: Text('${p.nombre} ${p.apellido}'),
-                    ),
-                  )
+                          value: p,
+                          child: Text('${p.nombre} ${p.apellido}'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setState(() => _selectedProfessor = v),
                 ),
@@ -1816,15 +1817,12 @@ class _StudentChatPageState extends State<StudentChatPage> {
           Expanded(
             child: _selectedProfessor == null
                 ? const Center(
-              child: Text(
-                'Selecciona un profesor para ver la conversación.',
-                style: TextStyle(color: Color(0xFF667085)),
-              ),
-            )
-                : _ChatThread(
-              current: widget.user,
-              other: _selectedProfessor!,
-            ),
+                    child: Text(
+                      'Selecciona un profesor para ver la conversación.',
+                      style: TextStyle(color: Color(0xFF667085)),
+                    ),
+                  )
+                : _ChatThread(current: widget.user, other: _selectedProfessor!),
           ),
           if (_selectedProfessor != null)
             _ChatInputBar(
@@ -1896,15 +1894,9 @@ class _StudentProfileFormState extends State<StudentProfileForm> {
               value: '${widget.user.nombre} ${widget.user.apellido}',
             ),
             const SizedBox(height: 12),
-            _FieldRowStatic(
-              label: 'Carrera',
-              value: widget.user.campoExtra,
-            ),
+            _FieldRowStatic(label: 'Carrera', value: widget.user.campoExtra),
             const SizedBox(height: 12),
-            _FieldRowStatic(
-              label: 'Correo',
-              value: widget.user.email,
-            ),
+            _FieldRowStatic(label: 'Correo', value: widget.user.email),
             const SizedBox(height: 18),
             TextField(
               controller: _cedulaCtrl,
@@ -1965,14 +1957,11 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
               await UserRepository.instance.logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const StartPage()),
-                    (_) => false,
+                (_) => false,
               );
             },
             icon: const Icon(Icons.logout, color: Colors.white),
-            label: const Text(
-              'Salir',
-              style: TextStyle(color: Colors.white),
-            ),
+            label: const Text('Salir', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1983,16 +1972,22 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             selectedIndex: _tabIndex,
             onDestinationSelected: (i) => setState(() => _tabIndex = i),
             labelType: NavigationRailLabelType.all,
-            selectedIconTheme:
-            const IconThemeData(color: Colors.white, size: 26),
+            selectedIconTheme: const IconThemeData(
+              color: Colors.white,
+              size: 26,
+            ),
             selectedLabelTextStyle: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
-            unselectedIconTheme:
-            const IconThemeData(color: Colors.white70, size: 22),
-            unselectedLabelTextStyle:
-            const TextStyle(color: Colors.white70, fontSize: 12),
+            unselectedIconTheme: const IconThemeData(
+              color: Colors.white70,
+              size: 22,
+            ),
+            unselectedLabelTextStyle: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
             destinations: const [
               NavigationRailDestination(
                 icon: Icon(Icons.dashboard_outlined),
@@ -2054,8 +2049,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
     final totalProjects = ProjectRepository.instance.allProjects.length;
     final totalTasks = ProjectRepository.instance.totalAssignedTasks;
     final completedTasks = ProjectRepository.instance.totalCompletedTasks;
-    final completionRate =
-    totalTasks == 0 ? 0.0 : completedTasks / totalTasks;
+    final completionRate = totalTasks == 0 ? 0.0 : completedTasks / totalTasks;
 
     return ProfessorHomeSection(
       user: user,
@@ -2091,10 +2085,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             const SizedBox(height: 8),
             const Text(
               'Listado de proyectos disponibles para los estudiantes.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF667085),
-              ),
+              style: TextStyle(fontSize: 13, color: Color(0xFF667085)),
             ),
             const SizedBox(height: 12),
             Align(
@@ -2113,78 +2104,74 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             Expanded(
               child: projects.isEmpty
                   ? const Center(
-                child: Text(
-                  'Aún no has creado proyectos.',
-                  style: TextStyle(color: Color(0xFF667085)),
-                ),
-              )
-                  : ListView.separated(
-                itemCount: projects.length,
-                separatorBuilder: (_, __) =>
-                const SizedBox(height: 12),
-                itemBuilder: (_, index) {
-                  final p = projects[index];
-                  return Card(
-                    elevation: 0,
-                    color: Colors.grey.withOpacity(.04),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            p.name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            p.course,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF667085),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            p.description,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF667085),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Tareas:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          if (p.tasks.isEmpty)
-                            const Text(
-                              '• (Sin tareas definidas aún)',
-                              style: TextStyle(fontSize: 12),
-                            )
-                          else
-                            ...p.tasks.map(
-                                  (t) => Text(
-                                '• ${t.title}',
-                                style:
-                                const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                        ],
+                      child: Text(
+                        'Aún no has creado proyectos.',
+                        style: TextStyle(color: Color(0xFF667085)),
                       ),
+                    )
+                  : ListView.separated(
+                      itemCount: projects.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, index) {
+                        final p = projects[index];
+                        return Card(
+                          elevation: 0,
+                          color: Colors.grey.withOpacity(.04),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  p.course,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF667085),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  p.description,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF667085),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Tareas:',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                if (p.tasks.isEmpty)
+                                  const Text(
+                                    '• (Sin tareas definidas aún)',
+                                    style: TextStyle(fontSize: 12),
+                                  )
+                                else
+                                  ...p.tasks.map(
+                                    (t) => Text(
+                                      '• ${t.title}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -2214,29 +2201,24 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             const SizedBox(height: 8),
             const Text(
               'Selecciona un estudiante y envía solicitudes para que se una a un proyecto.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF667085),
-              ),
+              style: TextStyle(fontSize: 13, color: Color(0xFF667085)),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<AppUser>(
-                    decoration: const InputDecoration(
-                      labelText: 'Estudiante',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Estudiante'),
                     value: _selectedStudentForChat,
                     items: students
                         .map(
                           (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(
-                          '${s.nombre} ${s.apellido} (${s.email})',
-                        ),
-                      ),
-                    )
+                            value: s,
+                            child: Text(
+                              '${s.nombre} ${s.apellido} (${s.email})',
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) =>
                         setState(() => _selectedStudentForChat = v),
@@ -2248,47 +2230,45 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
             Expanded(
               child: projects.isEmpty
                   ? const Center(
-                child: Text(
-                  'No hay proyectos para asignar todavía.',
-                  style: TextStyle(color: Color(0xFF667085)),
-                ),
-              )
+                      child: Text(
+                        'No hay proyectos para asignar todavía.',
+                        style: TextStyle(color: Color(0xFF667085)),
+                      ),
+                    )
                   : ListView.separated(
-                itemCount: projects.length,
-                separatorBuilder: (_, __) =>
-                const SizedBox(height: 10),
-                itemBuilder: (_, index) {
-                  final p = projects[index];
-                  return ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    tileColor: Colors.grey.withOpacity(.04),
-                    title: Text(p.name),
-                    subtitle: Text(p.course),
-                    trailing: ElevatedButton(
-                      onPressed: _selectedStudentForChat == null
-                          ? null
-                          : () {
-                        ProjectRepository.instance
-                            .addRequestForStudent(
-                          _selectedStudentForChat!.email,
-                          p,
-                        );
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Solicitud enviada a ${_selectedStudentForChat!.email}',
-                            ),
+                      itemCount: projects.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, index) {
+                        final p = projects[index];
+                        return ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          tileColor: Colors.grey.withOpacity(.04),
+                          title: Text(p.name),
+                          subtitle: Text(p.course),
+                          trailing: ElevatedButton(
+                            onPressed: _selectedStudentForChat == null
+                                ? null
+                                : () {
+                                    ProjectRepository.instance
+                                        .addRequestForStudent(
+                                          _selectedStudentForChat!.email,
+                                          p,
+                                        );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Solicitud enviada a ${_selectedStudentForChat!.email}',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            child: const Text('Enviar solicitud'),
                           ),
                         );
                       },
-                      child: const Text('Enviar solicitud'),
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -2304,8 +2284,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
       child: Column(
         children: [
           Padding(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2320,29 +2299,21 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                 const SizedBox(height: 6),
                 const Text(
                   'Elige un estudiante para conversar de forma privada.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF667085),
-                  ),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF667085)),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<AppUser>(
-                  decoration: const InputDecoration(
-                    labelText: 'Estudiante',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Estudiante'),
                   value: _selectedStudentForChat,
                   items: students
                       .map(
                         (s) => DropdownMenuItem(
-                      value: s,
-                      child: Text(
-                        '${s.nombre} ${s.apellido}',
-                      ),
-                    ),
-                  )
+                          value: s,
+                          child: Text('${s.nombre} ${s.apellido}'),
+                        ),
+                      )
                       .toList(),
-                  onChanged: (v) =>
-                      setState(() => _selectedStudentForChat = v),
+                  onChanged: (v) => setState(() => _selectedStudentForChat = v),
                 ),
               ],
             ),
@@ -2351,15 +2322,12 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
           Expanded(
             child: _selectedStudentForChat == null
                 ? const Center(
-              child: Text(
-                'Selecciona un estudiante para ver la conversación.',
-                style: TextStyle(color: Color(0xFF667085)),
-              ),
-            )
-                : _ChatThread(
-              current: user,
-              other: _selectedStudentForChat!,
-            ),
+                    child: Text(
+                      'Selecciona un estudiante para ver la conversación.',
+                      style: TextStyle(color: Color(0xFF667085)),
+                    ),
+                  )
+                : _ChatThread(current: user, other: _selectedStudentForChat!),
           ),
           if (_selectedStudentForChat != null)
             _ChatInputBar(
@@ -2494,7 +2462,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                             ),
                             const SizedBox(height: 4),
                             ...tasks.map(
-                                  (t) => Text(
+                              (t) => Text(
                                 '• $t',
                                 style: const TextStyle(fontSize: 12),
                               ),
@@ -2506,8 +2474,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                       const SizedBox(height: 8),
                       Text(
                         errorText!,
-                        style:
-                        const TextStyle(color: Colors.red, fontSize: 12),
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ],
                   ],
@@ -2526,7 +2493,7 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                     if (name.isEmpty || course.isEmpty || desc.isEmpty) {
                       setStateDialog(() {
                         errorText =
-                        'Todos los campos del proyecto son obligatorios.';
+                            'Todos los campos del proyecto son obligatorios.';
                       });
                       return;
                     }
@@ -2541,10 +2508,10 @@ class _ProfessorProfilePageState extends State<ProfessorProfilePage> {
                           .entries
                           .map(
                             (e) => ProjectTask(
-                          id: 't_${e.key}_$now',
-                          title: e.value,
-                        ),
-                      )
+                              id: 't_${e.key}_$now',
+                              title: e.value,
+                            ),
+                          )
                           .toList(),
                     );
                     Navigator.of(dialogContext).pop(project);
@@ -2706,26 +2673,19 @@ class _FieldRowStatic extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF667085),
-          ),
+          style: const TextStyle(fontSize: 12, color: Color(0xFF667085)),
         ),
         const SizedBox(height: 4),
         Container(
           width: double.infinity,
-          padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.grey.withOpacity(.04),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             value.isEmpty ? '-' : value,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF0E2238),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF0E2238)),
           ),
         ),
       ],
@@ -2748,9 +2708,7 @@ class _ChatThreadState extends State<_ChatThread> {
 
   void _scrollToEnd() {
     if (_scrollController.hasClients) {
-      _scrollController.jumpTo(
-        _scrollController.position.maxScrollExtent,
-      );
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     }
   }
 
@@ -2785,14 +2743,10 @@ class _ChatThreadState extends State<_ChatThread> {
         final m = messages[index];
         final isMe = m.fromEmail == widget.current.email;
         return Align(
-          alignment:
-          isMe ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: isMe ? kDeepBlue : Colors.grey.withOpacity(.2),
               borderRadius: BorderRadius.circular(12),
@@ -2814,21 +2768,15 @@ class _ChatInputBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
 
-  const _ChatInputBar({
-    required this.controller,
-    required this.onSend,
-  });
+  const _ChatInputBar({required this.controller, required this.onSend});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.grey.withOpacity(.06),
-        border: const Border(
-          top: BorderSide(color: Color(0xFFE2E8F0)),
-        ),
+        border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Row(
         children: [
